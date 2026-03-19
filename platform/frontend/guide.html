@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide - FinOps Study</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">F</div>
+        <span class="brand-text">FinOps Study</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dashboard
+        </a>
+        <a href="problems.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Problems
+        </a>
+        <a href="submit.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Submit Answer
+        </a>
+        <a href="scores.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Scores
+        </a>
+        <a href="profile.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </a>
+        <a href="materials.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Materials
+        </a>
+        <a href="create-problem.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Create Problem
+        </a>
+        <a href="guide.html" class="sidebar-link active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Guide
+        </a>
+        <div class="sidebar-section-label">Admin</div>
+        <a href="admin.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Settings
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="auth-area"></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>AI Agent Guide</h1>
+        </div>
+        <div class="topbar-right">
+          <button onclick="downloadStarterKit()" class="btn btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Starter Kit
+          </button>
+        </div>
+      </header>
+
+      <div class="content" style="max-width:900px;">
+
+        <!-- Quick Start -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">Quick Start</span>
+          </div>
+          <div class="card-body-lg" style="line-height:1.8;">
+            <p><strong>1.</strong> 아래 <strong>Download Starter Kit</strong> 버튼으로 파일을 받으세요.</p>
+            <p><strong>2.</strong> Ollama를 설치하고 모델을 다운로드하세요:</p>
+            <pre><code># Ollama 설치: https://ollama.com
+ollama pull qwen2.5:14b</code></pre>
+            <p><strong>3.</strong> Problems 페이지에서 문제 파일을 다운로드하세요.</p>
+            <p><strong>4.</strong> 에이전트를 실행하세요:</p>
+            <pre><code>python agent.py ./L1-002/</code></pre>
+            <p><strong>5.</strong> 생성된 <code>analysis.json</code>을 Submit 페이지에서 제출하세요.</p>
+          </div>
+        </div>
+
+        <!-- Starter Kit Files -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">Starter Kit 구성</span>
+            <button onclick="downloadStarterKit()" class="btn btn-green btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download All
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="kit-files-loading" class="loading"><div class="spinner"></div></div>
+            <div id="kit-files" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- How It Works -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">How It Works</span>
+          </div>
+          <div class="card-body-lg" style="line-height:1.8;">
+            <pre style="background:var(--bg);color:var(--text);padding:16px;border:1px solid var(--border);font-size:13px;"><code>1. 문제 폴더 읽기
+   ├── main.tf          → Terraform 리소스 전체
+   ├── metrics.json     → 메트릭 요약 (평균, 최대, zero%)
+   ├── cost_report.json → 비용 추이 + 낭비 서비스
+   ├── business_metrics.json (L2+) → 단위경제
+   └── tags_inventory.json (L2+) → 태그 누락
+
+2. 프롬프트 조립
+   시스템 프롬프트 + 레벨별 분석 지시 + 파일 내용
+
+3. LLM 호출
+   Ollama (로컬) / OpenAI / Claude
+
+4. 응답 파싱
+   LLM 응답에서 JSON 추출 → 스키마 검증
+
+5. analysis.json 저장 → Submit에서 제출</code></pre>
+          </div>
+        </div>
+
+        <!-- Model Config -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">Model Configuration</span>
+          </div>
+          <div class="card-body-lg" style="line-height:1.8;">
+            <p><code>config.py</code>에서 사용할 모델을 선택합니다.</p>
+
+            <h4 style="margin:16px 0 8px;">Ollama (로컬 서버, 무료)</h4>
+            <pre><code>MODEL_PROVIDER = "ollama"
+OLLAMA_URL = "http://서버IP:11434"   # 스터디 서버 주소
+OLLAMA_MODEL = "qwen2.5:14b"</code></pre>
+
+            <h4 style="margin:16px 0 8px;">OpenAI API</h4>
+            <pre><code>MODEL_PROVIDER = "openai"
+OPENAI_API_KEY = "sk-..."
+OPENAI_MODEL = "gpt-4o-mini"</code></pre>
+
+            <h4 style="margin:16px 0 8px;">Claude API</h4>
+            <pre><code>MODEL_PROVIDER = "claude"
+ANTHROPIC_API_KEY = "sk-ant-..."
+CLAUDE_MODEL = "claude-sonnet-4-20250514"</code></pre>
+
+            <div class="info-banner" style="margin-top:16px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <div>스터디에서 제공하는 Ollama 서버를 사용하면 별도 비용 없이 실행할 수 있습니다.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customization -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">Customize Your Agent</span>
+          </div>
+          <div class="card-body-lg" style="line-height:1.8;">
+            <p>스타터 킷을 기반으로 에이전트를 개선할 수 있는 방향:</p>
+
+            <h4 style="margin:16px 0 8px;">1. Prompt Engineering</h4>
+            <p><code>prompts/</code> 폴더의 프롬프트를 수정하면 분석 품질이 크게 달라집니다. AWS 서비스별 비용 구조 지식을 프롬프트에 추가하세요.</p>
+
+            <h4 style="margin:16px 0 8px;">2. Metric Analysis Logic</h4>
+            <p><code>file_reader.py</code>에서 메트릭 통계 분석을 강화하세요. Z-score로 이상치 탐지, 이동 평균으로 트렌드 감지 등.</p>
+
+            <h4 style="margin:16px 0 8px;">3. Multi-step Analysis</h4>
+            <p>LLM을 여러 번 호출하여 1차 스캔 → 2차 심층 분석 → 3차 검증하면 정확도가 올라갑니다.</p>
+
+            <h4 style="margin:16px 0 8px;">4. Terraform Parser</h4>
+            <p><code>python-hcl2</code> 라이브러리로 Terraform을 구조적으로 파싱하면 리소스 속성을 정확히 추출할 수 있습니다.</p>
+
+            <h4 style="margin:16px 0 8px;">5. Cost Calculator</h4>
+            <p>AWS 요금표를 기반으로 절감액을 직접 계산하면 LLM에 의존하지 않고 정확한 수치를 낼 수 있습니다.</p>
+          </div>
+        </div>
+
+        <!-- Output Schema -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">Output Format</span>
+          </div>
+          <div class="card-body-lg">
+            <p style="margin-bottom:12px;">에이전트가 생성해야 하는 JSON 형식입니다. 레벨에 따라 필수 필드가 다릅니다.</p>
+            <table>
+              <thead>
+                <tr><th>Field</th><th>L1</th><th>L2</th><th>L3</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>analysis.problems_found[]</code></td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+                <tr><td><code>analysis.unit_economics</code></td><td style="color:var(--text-muted);">-</td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+                <tr><td><code>analysis.elasticity</code></td><td style="color:var(--text-muted);">-</td><td style="color:var(--text-muted);">-</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+                <tr><td><code>recommendations[]</code></td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+                <tr><td><code>alerts[]</code></td><td style="color:var(--text-muted);">-</td><td style="color:var(--text-muted);">-</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+                <tr><td><code>summary</code></td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td><td style="color:var(--green);font-weight:600;">Required</td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top:12px;font-size:13px;color:var(--text-muted);">전체 스키마: <code>platform/spec/output_schema.json</code></p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/guide.js"></script>
+</body>
+</html>

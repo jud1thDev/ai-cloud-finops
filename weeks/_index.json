@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "1773901939372-dev-jiseok",
+    "title": "Week 1 ppt",
+    "author": "dev-jiseok",
+    "date": "2026-03-19T06:32:19.372Z",
+    "week": "1",
+    "category": "presentation",
+    "description": "",
+    "files": [
+      "AI FinOps 스터디 소개.pdf",
+      "FinOps 가이드 및 AI 방법론.pdf",
+      "FinOps 시뮬레이션 출제 AI.pdf"
+    ]
+  }
+]

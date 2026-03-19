@@ -1,0 +1,1 @@
+https://velog.io/@cjose2/AWS-Lambda-Power-Tuning-활용한-람다-함수-최적화

@@ -254,6 +254,23 @@ async function viewPost(postId) {
     contentHtml += `</div>`;
   }
 
+  // Edit/Delete buttons (author or admin only)
+  const username = APP.getUsername();
+  if (post.author === username || APP.isAdmin()) {
+    contentHtml += `
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-light);display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="editPost('${postId}')" class="btn btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+        <button onclick="deletePost('${postId}')" class="btn btn-sm" style="color:var(--red);border-color:var(--red);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Delete
+        </button>
+      </div>
+    `;
+  }
+
   document.getElementById('viewer-title').textContent = post.title;
   document.getElementById('viewer-content').innerHTML = contentHtml;
   document.getElementById('viewer-modal').classList.add('active');
@@ -284,6 +301,94 @@ function hideViewerModal() {
 }
 
 // ══════════════════════════════════════
+// Edit / Delete
+// ══════════════════════════════════════
+
+async function editPost(postId) {
+  const post = allPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  hideViewerModal();
+
+  // Pre-fill the upload modal with existing data
+  materialFiles = [];
+  document.getElementById('mat-title').value = post.title || '';
+  document.getElementById('mat-week').value = post.week || 'general';
+  document.getElementById('mat-category').value = post.category || 'note';
+  document.getElementById('mat-description').value = post.description || '';
+  document.getElementById('mat-file-list').innerHTML = '';
+  document.getElementById('upload-error').textContent = '';
+
+  // Change button to "Save Changes"
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = false;
+  btn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save Changes
+  `;
+
+  // Store edit state
+  window._editingPostId = postId;
+
+  document.getElementById('upload-modal').classList.add('active');
+}
+
+async function deletePost(postId) {
+  const post = allPosts.find(p => p.id === postId);
+  if (!post) return;
+
+  if (!confirm(`"${post.title}" 을(를) 삭제하시겠습니까?`)) return;
+
+  try {
+    const weekDir = post.week === 'general' ? 'general' : `week-${String(post.week).padStart(2, '0')}`;
+    const basePath = `weeks/${weekDir}/${postId}`;
+
+    if (!APP.LOCAL) {
+      // Delete all files in the post directory
+      const allFiles = [...(post.files || []), 'meta.json'];
+      for (const filename of allFiles) {
+        try {
+          const fileData = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/${filename}`);
+          await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/${filename}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `[weeks] Delete "${post.title}" — ${filename}`,
+              sha: fileData.sha,
+            }),
+          });
+        } catch {}
+      }
+
+      // Update index
+      const idxResp = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_index.json`);
+      const index = JSON.parse(decodeURIComponent(escape(atob(idxResp.content))));
+      const newIndex = index.filter(p => p.id !== postId);
+
+      await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_index.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `[weeks] Delete "${post.title}" from index`,
+          content: btoa(unescape(encodeURIComponent(JSON.stringify(newIndex, null, 2)))),
+          sha: idxResp.sha,
+        }),
+      });
+    }
+
+    // Update local state
+    allPosts = allPosts.filter(p => p.id !== postId);
+    buildWeekTabs();
+    renderPosts();
+    hideViewerModal();
+    alert('Deleted.');
+
+  } catch (e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════
 // Upload
 // ══════════════════════════════════════
 
@@ -300,10 +405,12 @@ function showUploadModal() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     Upload
   `;
+  window._editingPostId = null; // Reset edit state for new uploads
   document.getElementById('upload-modal').classList.add('active');
 }
 
 function hideUploadModal() {
+  window._editingPostId = null;
   document.getElementById('upload-modal').classList.remove('active');
 }
 
@@ -399,8 +506,12 @@ async function uploadMaterial() {
   try {
     const username = APP.getUsername();
     const now = new Date().toISOString();
-    const postId = `${Date.now()}-${username}`;
-    const weekDir = week === 'general' ? 'general' : `week-${String(parseInt(week)).padStart(2, '0')}`;
+    const isEdit = !!window._editingPostId;
+    const oldPost = isEdit ? allPosts.find(p => p.id === window._editingPostId) : null;
+    const postId = isEdit ? window._editingPostId : `${Date.now()}-${username}`;
+    const weekDir = isEdit && oldPost
+      ? (oldPost.week === 'general' ? 'general' : `week-${String(oldPost.week).padStart(2, '0')}`)
+      : (week === 'general' ? 'general' : `week-${String(parseInt(week)).padStart(2, '0')}`);
     const basePath = `weeks/${weekDir}/${postId}`;
 
     // If no files but has description, save description as content.md
@@ -422,44 +533,65 @@ async function uploadMaterial() {
     };
 
     if (!APP.LOCAL) {
+      const commitPrefix = isEdit ? 'Edit' : 'Add';
+
+      // Helper: get existing file sha for updates
+      async function getFileSha(path) {
+        try {
+          const data = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${path}`);
+          return data.sha;
+        } catch { return null; }
+      }
+
       // 0. If text-only post, save description as content.md
       if (materialFiles.length === 0 && description) {
         const mdContent = btoa(unescape(encodeURIComponent(description)));
+        const sha = await getFileSha(`${basePath}/content.md`);
+        const payload = {
+          message: `[weeks] ${commitPrefix} content.md for "${title}" by ${username}`,
+          content: mdContent,
+        };
+        if (sha) payload.sha = sha;
         await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/content.md`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `[weeks] Add content.md for "${title}" by ${username}`,
-            content: mdContent,
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
-      // 1. Upload each file
+      // 1. Upload each new file
       for (const file of materialFiles) {
+        const sha = await getFileSha(`${basePath}/${file.name}`);
+        const payload = {
+          message: `[weeks] ${commitPrefix} ${file.name} by ${username}`,
+          content: file.base64,
+        };
+        if (sha) payload.sha = sha;
         await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/${file.name}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: `[weeks] Upload ${file.name} by ${username}`,
-            content: file.base64,
-          }),
+          body: JSON.stringify(payload),
         });
       }
 
       // 2. Upload meta.json
+      const metaSha = await getFileSha(`${basePath}/meta.json`);
       const metaContent = btoa(unescape(encodeURIComponent(JSON.stringify(meta, null, 2))));
+      const metaPayload = {
+        message: `[weeks] ${commitPrefix} "${title}" by ${username}`,
+        content: metaContent,
+      };
+      if (metaSha) metaPayload.sha = metaSha;
       await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/meta.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `[weeks] Add "${title}" by ${username}`,
-          content: metaContent,
-        }),
+        body: JSON.stringify(metaPayload),
       });
 
       // 3. Update _index.json
-      const newIndex = [...allPosts, meta];
+      const newIndex = isEdit
+        ? allPosts.map(p => p.id === postId ? meta : p)
+        : [...allPosts, meta];
       const indexContent = btoa(unescape(encodeURIComponent(JSON.stringify(newIndex, null, 2))));
 
       // Get existing sha if exists
@@ -483,7 +615,12 @@ async function uploadMaterial() {
     }
 
     // Update local state
-    allPosts.push(meta);
+    if (isEdit) {
+      const idx = allPosts.findIndex(p => p.id === postId);
+      if (idx >= 0) allPosts[idx] = meta;
+    } else {
+      allPosts.push(meta);
+    }
     buildWeekTabs();
     renderPosts();
     hideUploadModal();

@@ -194,7 +194,11 @@ class TerraformGenerator:
             if block.strip():
                 blocks.append(block)
 
-        return "\n".join(blocks) + "\n"
+        hcl = "\n".join(blocks) + "\n"
+        # Clean up excessive blank lines from template rendering
+        import re
+        hcl = re.sub(r'\n{3,}', '\n\n', hcl)
+        return hcl
 
     # ------------------------------------------------------------------
     # File writing

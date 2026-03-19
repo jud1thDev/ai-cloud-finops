@@ -9,21 +9,6 @@ resource "aws_nat_gateway" "{{ r.resource_name }}" {
   allocation_id = aws_eip.{{ r.resource_name }}_eip.id
   subnet_id     = aws_subnet.{{ r.config.subnet_id | default('public') }}.id
 
-  {% if r.config.availability_zone is defined %}
-  # Deployed in: {{ r.config.availability_zone }}
-  {% endif %}
-
-  {% if r.config.monthly_data_gb is defined %}
-  # Estimated monthly data processed: {{ r.config.monthly_data_gb }} GB
-  # NAT Gateway processing cost: $0.045/GB
-  # Monthly processing charge: ~${{ (r.config.monthly_data_gb * 0.045) | round(0) | int }}
-  {% endif %}
-
-  {% if r.config.s3_traffic_ratio is defined and r.config.s3_traffic_ratio > 0 %}
-  # WARNING: {{ (r.config.s3_traffic_ratio * 100) | int }}% of traffic is to S3
-  # Consider S3 Gateway Endpoint to eliminate NAT processing costs for S3 traffic
-  {% endif %}
-
   tags = {
     Name = "{{ r.resource_name }}"
   }
@@ -46,23 +31,12 @@ resource "aws_vpc_endpoint" "{{ r.resource_name }}" {
   vpc_endpoint_type = "{{ r.config.endpoint_type | default('Gateway') }}"
 
   {% if r.config.endpoint_type | default('Gateway') == 'Interface' %}
-  # Interface Endpoint (PrivateLink) — incurs hourly + data processing charges
-  # $0.01/hr per AZ + $0.01/GB data processed
-  {% if r.config.availability_zones is defined %}
-  # Deployed across {{ r.config.availability_zones }} AZs
-  # Estimated hourly cost: {{ r.config.availability_zones }} AZs x $0.01/hr = ${{ (r.config.availability_zones * 0.01) | round(3) }}/hr
-  {% endif %}
-  {% if r.config.monthly_data_gb is defined %}
-  # Monthly data processed: {{ r.config.monthly_data_gb }} GB
-  {% endif %}
-
   subnet_ids         = var.private_subnet_ids
   security_group_ids = [aws_security_group.{{ r.resource_name }}_sg.id]
 
   private_dns_enabled = {{ r.config.private_dns_enabled | default(true) | lower }}
 
   {% elif r.config.endpoint_type | default('Gateway') == 'Gateway' %}
-  # Gateway Endpoint — FREE, no hourly or data processing charges
   route_table_ids = var.private_route_table_ids
   {% endif %}
 
@@ -80,19 +54,6 @@ resource "aws_ec2_transit_gateway" "{{ r.resource_name }}" {
   default_route_table_association = "{{ r.config.default_route_table_association | default('enable') }}"
   default_route_table_propagation = "{{ r.config.default_route_table_propagation | default('enable') }}"
   dns_support                     = "{{ r.config.dns_support | default('enable') }}"
-
-  {% if r.config.attachments is defined %}
-  # VPC attachments: {{ r.config.attachments }}
-  {% if r.config.attachments <= 2 %}
-  # WARNING: Only {{ r.config.attachments }} VPC attachments — VPC Peering may be more cost-effective
-  # Transit Gateway data processing: $0.02/GB vs VPC Peering: free (same AZ) / $0.01/GB (cross AZ)
-  {% endif %}
-  {% endif %}
-
-  {% if r.config.monthly_data_processed_gb is defined %}
-  # Monthly data processed: {{ r.config.monthly_data_processed_gb }} GB
-  # Transit Gateway processing cost: ${{ (r.config.monthly_data_processed_gb * 0.02) | round(0) | int }}/month
-  {% endif %}
 
   tags = {
     Name = "{{ r.resource_name }}"
@@ -112,19 +73,6 @@ resource "aws_lb" "{{ r.resource_name }}" {
 
   {% if r.config.cross_zone_enabled is defined %}
   enable_cross_zone_load_balancing = {{ r.config.cross_zone_enabled | lower }}
-  {% if r.config.cross_zone_enabled and r.config.load_balancer_type | default(r.config.type | default('application')) == 'network' %}
-  # WARNING: NLB cross-zone load balancing incurs $0.01/GB data transfer charge
-  # ALB cross-zone is free — consider ALB if Layer 4 is not strictly required
-  {% if r.config.monthly_data_gb is defined %}
-  # Estimated cross-zone cost: {{ r.config.monthly_data_gb }} GB x $0.01/GB = ${{ (r.config.monthly_data_gb * 0.01) | round(0) | int }}/month
-  {% endif %}
-  {% endif %}
-  {% endif %}
-
-  {% if r.config.idle_days is defined %}
-  # WARNING: Load balancer idle for {{ r.config.idle_days }} days
-  # Healthy targets: {{ r.config.healthy_targets | default(0) }}
-  # Fixed hourly cost continues regardless of traffic
   {% endif %}
 
   tags = {
@@ -142,12 +90,6 @@ resource "aws_lb" "{{ r.resource_name }}" {
 {% macro aws_eip(r) %}
 resource "aws_eip" "{{ r.resource_name }}" {
   domain = "vpc"
-
-  {% if r.config.attached is defined and not r.config.attached %}
-  # WARNING: Elastic IP is NOT attached to any instance
-  # Unattached for {{ r.config.unattached_days | default(0) }} days
-  # AWS charges $0.005/hr for unattached EIPs = ~$3.65/month per EIP
-  {% endif %}
 
   {% if r.config.attached is defined and r.config.attached %}
   instance = aws_instance.{{ r.config.attached_to | default('target') }}.id
@@ -167,17 +109,6 @@ resource "aws_vpn_connection" "{{ r.resource_name }}" {
   type                = "ipsec.1"
   static_routes_only  = {{ r.config.static_routes_only | default(false) | lower }}
 
-  {% if r.config.tunnel_count is defined %}
-  # Tunnel count: {{ r.config.tunnel_count }}
-  {% endif %}
-
-  {% if r.config.monthly_data_in_gb is defined and r.config.monthly_data_in_gb == 0 %}
-  # WARNING: VPN connection has ZERO data transfer
-  # Data in:  {{ r.config.monthly_data_in_gb }} GB/month
-  # Data out: {{ r.config.monthly_data_out_gb | default(0) }} GB/month
-  # Connection-hour billing continues at $0.05/hr regardless of traffic
-  {% endif %}
-
   tags = {
     Name  = "{{ r.resource_name }}"
     State = "{{ r.config.state | default('available') }}"
@@ -191,11 +122,6 @@ resource "aws_dx_connection" "{{ r.resource_name }}" {
   name      = "{{ r.resource_name }}"
   bandwidth = "{{ r.config.bandwidth | default('1Gbps') }}"
   location  = "{{ r.config.location | default('EqSE2') }}"
-
-  {% if r.config.monthly_data_out_gb is defined %}
-  # Monthly data out: {{ r.config.monthly_data_out_gb }} GB
-  # Direct Connect data transfer: $0.02/GB (lower than internet egress)
-  {% endif %}
 
   tags = {
     Name  = "{{ r.resource_name }}"
@@ -241,10 +167,6 @@ resource "aws_cloudfront_distribution" "{{ r.resource_name }}" {
     default_ttl = {{ r.config.default_ttl | default(86400) }}
     max_ttl     = {{ r.config.max_ttl | default(31536000) }}
   }
-
-  {% if r.config.cache_hit_ratio is defined %}
-  # Cache hit ratio: {{ (r.config.cache_hit_ratio * 100) | round(0) | int }}%
-  {% endif %}
 
   restrictions {
     geo_restriction {

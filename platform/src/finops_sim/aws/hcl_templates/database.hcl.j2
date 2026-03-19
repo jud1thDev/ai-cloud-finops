@@ -15,29 +15,12 @@ resource "aws_db_instance" "{{ r.resource_name }}" {
   storage_type      = "{{ r.config.storage_type | default('gp3') }}"
 
   multi_az = {{ r.config.multi_az | default(false) | lower }}
-  {% if r.config.multi_az is defined and r.config.multi_az %}
-  {% if r.config.environment is defined and r.config.environment in ['dev', 'staging', 'development'] %}
-  # WARNING: Multi-AZ enabled on {{ r.config.environment }} environment
-  # Multi-AZ doubles the instance cost — typically unnecessary for non-production
-  {% endif %}
-  {% endif %}
 
   {% if r.config.role is defined and r.config.role == 'read_replica' %}
   replicate_source_db = aws_db_instance.{{ r.config.source_db | default('primary') }}.identifier
-  # Role: Read Replica
-  # NOTE: Verify that application routes read traffic to this replica
   {% endif %}
 
   backup_retention_period = {{ r.config.backup_retention_period | default(7) }}
-  {% if r.config.backup_retention_period is defined and r.config.backup_retention_period > 14 %}
-  # WARNING: Backup retention set to {{ r.config.backup_retention_period }} days (default: 7)
-  # Each additional day of backup adds ~{{ r.config.db_size_gb | default(r.config.allocated_storage | default(100)) }} GB of backup storage
-  # Backup storage cost: $0.095/GB/month beyond free tier
-  {% endif %}
-
-  {% if r.config.max_connections is defined %}
-  # Max connections: {{ r.config.max_connections }}
-  {% endif %}
 
   skip_final_snapshot = {{ r.config.skip_final_snapshot | default(false) | lower }}
 
@@ -75,16 +58,6 @@ resource "aws_db_proxy" "{{ r.resource_name }}" {
     iam_auth    = "{{ r.config.iam_auth | default('DISABLED') }}"
     secret_arn  = aws_secretsmanager_secret.{{ r.resource_name }}_secret.arn
   }
-
-  {% if r.config.max_connections_percent is defined %}
-  # Max connections percent: {{ r.config.max_connections_percent }}%
-  {% endif %}
-
-  {% if r.config.target_db is defined %}
-  # Target database: {{ r.config.target_db }}
-  # RDS Proxy enables connection pooling — reduces DB connection overhead
-  # Particularly useful for Lambda→RDS workloads
-  {% endif %}
 
   tags = {
     Name = "{{ r.resource_name }}"
@@ -125,12 +98,6 @@ resource "aws_elasticache_replication_group" "{{ r.resource_name }}" {
   subnet_group_name  = aws_elasticache_subnet_group.{{ r.resource_name }}.name
   security_group_ids = [aws_security_group.{{ r.resource_name }}_sg.id]
 
-  {% if r.config.num_cache_clusters is defined and r.config.num_cache_clusters > 3 %}
-  # WARNING: {{ r.config.num_cache_clusters }} cache clusters configured
-  # Verify actual connection count and CPU utilization justify this cluster size
-  # {{ r.config.node_type | default('cache.t3.medium') }} per-node hourly cost applies to ALL {{ r.config.num_cache_clusters }} nodes
-  {% endif %}
-
   tags = {
     Name = "{{ r.resource_name }}"
   }
@@ -169,13 +136,6 @@ resource "aws_dynamodb_table" "{{ r.resource_name }}" {
   read_capacity  = {{ r.config.read_capacity_units | default(5) }}
   write_capacity = {{ r.config.write_capacity_units | default(5) }}
 
-  {% if r.config.read_capacity_units is defined and r.config.read_capacity_units > 1000 %}
-  # WARNING: High provisioned RCU ({{ r.config.read_capacity_units }}) — verify actual consumed capacity
-  # Consider Auto Scaling or On-Demand mode if utilization is below 30%
-  {% endif %}
-  {% if r.config.write_capacity_units is defined and r.config.write_capacity_units > 500 %}
-  # WARNING: High provisioned WCU ({{ r.config.write_capacity_units }}) — verify actual consumed capacity
-  {% endif %}
   {% endif %}
 
   point_in_time_recovery {
@@ -199,16 +159,6 @@ resource "aws_redshift_cluster" "{{ r.resource_name }}" {
   number_of_nodes    = {{ r.config.number_of_nodes | default(2) }}
 
   encrypted = {{ r.config.encrypted | default(true) | lower }}
-
-  {% if r.config.schedule is defined and r.config.schedule == 'always-on' %}
-  # WARNING: Cluster is running 24/7 (always-on)
-  # Node cost: {{ r.config.number_of_nodes | default(2) }} nodes x {{ r.config.node_type | default('ra3.xlplus') }}
-  # Check query activity patterns — if batch-only, consider pause/resume scheduling
-  {% endif %}
-
-  {% if r.config.pause_resume_schedule is defined %}
-  # Pause/Resume schedule: {{ r.config.pause_resume_schedule }}
-  {% endif %}
 
   skip_final_snapshot = {{ r.config.skip_final_snapshot | default(false) | lower }}
 
@@ -251,7 +201,7 @@ resource "aws_redshift_scheduled_action" "{{ r.resource_name }}_resume" {
 # ──────────────────────────────────────────────────────────────────────────
 # Reserved Instance Commitment: {{ r.resource_name }}
 # ──────────────────────────────────────────────────────────────────────────
-# NOTE: Reserved Instances are purchase commitments, not Terraform-managed
+# Reserved Instances are purchase commitments, not Terraform-managed
 # resources. This block documents the RI for visibility in the IaC codebase.
 #
 # Instance Type:  {{ r.config.instance_type | default('unknown') }}
@@ -260,14 +210,6 @@ resource "aws_redshift_scheduled_action" "{{ r.resource_name }}_resume" {
 # State:          {{ r.config.state | default('active') }}
 # Utilization:    {{ r.config.utilization | default('unknown') }}%
 # Count:          {{ r.config.count | default(1) }}
-#
-{% if r.config.utilization is defined and r.config.utilization == 0 %}
-# CRITICAL: RI utilization is 0% — no matching instances are running
-# The RI commitment cost is being paid with no benefit
-# Action: Sell on RI Marketplace, exchange for Convertible RI, or launch matching instances
-{% elif r.config.utilization is defined and r.config.utilization < 50 %}
-# WARNING: RI utilization is only {{ r.config.utilization }}% — significant waste
-{% endif %}
 #
 # To query RI status via AWS CLI:
 #   aws ec2 describe-reserved-instances --filters Name=state,Values=active

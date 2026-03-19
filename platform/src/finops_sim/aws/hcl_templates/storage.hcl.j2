@@ -9,22 +9,12 @@ resource "aws_ebs_volume" "{{ r.resource_name }}" {
   size              = {{ r.config.size_gb | default(100) }}
   type              = "{{ r.config.volume_type | default('gp3') }}"
 
-  {% if r.config.volume_type is defined and r.config.volume_type == 'gp2' %}
-  # NOTE: gp2 volume — consider migrating to gp3 for ~20% cost savings
-  # gp3 provides baseline 3,000 IOPS / 125 MiB/s without size-based scaling
-  {% endif %}
-
   {% if r.config.iops is defined %}
   iops = {{ r.config.iops }}
   {% endif %}
 
   {% if r.config.throughput is defined %}
   throughput = {{ r.config.throughput }}
-  {% endif %}
-
-  {% if r.config.attached_to is defined and r.config.attached_to == 'stopped_instance' %}
-  # WARNING: Volume attached to a STOPPED instance — I/O is zero
-  # Storage charges continue at ${{ '0.10' if r.config.volume_type | default('gp3') == 'gp2' else '0.08' }}/GB/month
   {% endif %}
 
   encrypted = {{ r.config.encrypted | default(true) | lower }}
@@ -44,17 +34,6 @@ resource "aws_ebs_snapshot" "{{ r.resource_name }}" {
   volume_id   = "{{ r.config.volume_id | default('vol-placeholder') }}"
   description = "Snapshot {{ r.resource_name }}"
 
-  {% if r.config.source_volume_deleted is defined and r.config.source_volume_deleted %}
-  # WARNING: Source volume has been DELETED — this snapshot is orphaned
-  # Snapshot age: {{ r.config.avg_age_days | default(r.config.age_days | default('unknown')) }} days
-  # Total size: {{ r.config.total_size_gb | default('unknown') }} GB
-  # Cost: $0.05/GB/month
-  {% endif %}
-
-  {% if r.config.associated_with_ami is defined and r.config.associated_with_ami %}
-  # Associated with AMI — deregister AMI first before deleting this snapshot
-  {% endif %}
-
   tags = {
     Name = "{{ r.resource_name }}"
     {% if r.config.source_volume_deleted is defined and r.config.source_volume_deleted %}
@@ -72,21 +51,8 @@ resource "aws_ebs_snapshot" "{{ r.resource_name }}" {
 resource "aws_s3_bucket" "{{ r.resource_name }}" {
   bucket = "{{ r.config.bucket_name | default(r.resource_name) }}"
 
-  {% if r.config.versioning is defined and r.config.versioning %}
-  # Versioning enabled
-  {% if r.config.noncurrent_version_expiration_days is not defined or r.config.noncurrent_version_expiration_days is none %}
-  # WARNING: Versioning ON but NoncurrentVersionExpiration NOT configured
-  # Current size: {{ r.config.current_size_tb | default('unknown') }} TB
-  # Total with versions: {{ r.config.total_with_versions_tb | default('unknown') }} TB
-  {% endif %}
-  {% endif %}
-
-  {% if r.config.public_access is defined and r.config.public_access %}
-  # NOTE: Public access enabled — consider restricting via CloudFront OAI/OAC
-  {% endif %}
-
   {% if r.config.website_hosting is defined and r.config.website_hosting %}
-  # Static website hosting enabled — monthly egress: {{ r.config.monthly_egress_tb | default('unknown') }} TB
+  # Static website hosting enabled
   {% endif %}
 
   tags = {
@@ -145,10 +111,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "{{ r.resource_name }}" {
   }
   {% endif %}
 }
-{% elif r.config.lifecycle_policy is not defined or r.config.lifecycle_policy is none %}
-# WARNING: No lifecycle policy configured
-# Total bucket size: {{ r.config.total_size_tb | default(r.config.total_size_gb | default('unknown')) }}{{ ' TB' if r.config.total_size_tb is defined else ' GB' if r.config.total_size_gb is defined else '' }}
-# Storage class: {{ r.config.storage_class | default('STANDARD') }}
 {% endif %}
 
 {% if r.config.public_access is defined and not r.config.public_access %}
@@ -180,9 +142,6 @@ resource "aws_s3_bucket_replication_configuration" "{{ r.resource_name }}" {
       {% endif %}
     }
     {% elif r.config.filter is not defined or r.config.filter is none %}
-    # WARNING: No filter — entire bucket ({{ r.config.total_size_tb | default('unknown') }} TB) is replicated
-    # Critical data ratio: {{ r.config.critical_data_ratio | default('unknown') }}
-    # Consider adding prefix or tag filter to replicate only essential data
     filter {}
     {% endif %}
 
@@ -203,13 +162,6 @@ resource "aws_ecr_repository" "{{ r.resource_name }}" {
   image_scanning_configuration {
     scan_on_push = {{ r.config.scan_on_push | default(true) | lower }}
   }
-
-  {% if r.config.lifecycle_policy is not defined or r.config.lifecycle_policy is none %}
-  # WARNING: No lifecycle policy — images accumulate indefinitely
-  # Current image count: {{ r.config.image_count | default('unknown') }}
-  # Repository size: {{ r.config.total_size_gb | default('unknown') }} GB
-  # ECR storage: $0.10/GB/month
-  {% endif %}
 
   tags = {
     Name = "{{ r.resource_name }}"

@@ -18,14 +18,6 @@ resource "aws_ecs_service" "{{ r.resource_name }}" {
     assign_public_ip = false
   }
 
-  {% if r.config.pricing is defined %}
-  # Pricing model: {{ r.config.pricing }}
-  {% endif %}
-
-  {% if r.config.desired_count is defined and r.config.desired_count > 3 %}
-  # {{ r.config.desired_count }} tasks running — verify utilization justifies this count
-  {% endif %}
-
   tags = {
     Name = "{{ r.resource_name }}"
   }
@@ -39,20 +31,6 @@ resource "aws_ecs_task_definition" "{{ r.resource_name }}" {
   memory                   = "{{ r.config.memory | default(512) }}"
   execution_role_arn       = aws_iam_role.{{ r.resource_name }}_execution_role.arn
   task_role_arn            = aws_iam_role.{{ r.resource_name }}_task_role.arn
-
-  {% if r.config.cpu is defined and r.config.memory is defined %}
-  # Fargate pricing: vCPU=$0.04048/hr + Memory=$0.004445/GB/hr
-  # Task config: {{ (r.config.cpu / 1024) | round(2) }} vCPU / {{ (r.config.memory / 1024) | round(2) }} GB
-  # Per-task hourly cost: ~${{ ((r.config.cpu / 1024 * 0.04048) + (r.config.memory / 1024 * 0.004445)) | round(4) }}/hr
-  {% if r.config.desired_count is defined %}
-  # Total hourly cost ({{ r.config.desired_count }} tasks): ~${{ ((r.config.cpu / 1024 * 0.04048) + (r.config.memory / 1024 * 0.004445)) * r.config.desired_count | round(4) }}/hr
-  {% endif %}
-  {% endif %}
-
-  {% if r.config.cpu is defined and r.config.cpu >= 4096 %}
-  # WARNING: Task allocated {{ r.config.cpu }} CPU units ({{ (r.config.cpu / 1024) | round(1) }} vCPU)
-  # Verify CloudWatch ECS CPUUtilization to confirm this allocation is justified
-  {% endif %}
 
   container_definitions = jsonencode([
     {
@@ -102,23 +80,6 @@ resource "aws_eks_node_group" "{{ r.resource_name }}" {
     max_size     = {{ r.config.max_size | default(r.config.desired_size | default(3)) }}
     desired_size = {{ r.config.desired_size | default(2) }}
   }
-
-  {% if r.config.vcpu is defined and r.config.memory_gb is defined %}
-  # Node specs: {{ r.config.vcpu }} vCPU / {{ r.config.memory_gb }} GB RAM
-  {% endif %}
-
-  {% if r.config.role is defined %}
-  # Node role: {{ r.config.role }}
-  {% endif %}
-
-  {% if r.config.pods_per_node is defined %}
-  # Pods per node: {{ r.config.pods_per_node }}
-  {% endif %}
-
-  {% if r.config.desired_size is defined and r.config.desired_size > 10 %}
-  # WARNING: {{ r.config.desired_size }} nodes in this group — validate pod scheduling density
-  # If pods_per_node is low, CPU requests may be over-provisioned
-  {% endif %}
 
   update_config {
     max_unavailable = {{ r.config.max_unavailable | default(1) }}

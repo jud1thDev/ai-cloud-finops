@@ -51,9 +51,10 @@ def _resolve_generators(scenario, generators_override: Set[str] | None = None) -
         active.add("cloudwatch_format")
         active.add("cur_report")
 
-    # rate category or ri-sp tag → always generate RI/SP data
-    if scenario.category == "rate" or "ri-sp" in (scenario.tags or []):
-        active.add("ri_sp_coverage")
+    # rate category or ri-sp tag → generate RI/SP data (L2+ only)
+    if level in (Level.L2, Level.L3):
+        if scenario.category == "rate" or "ri-sp" in (scenario.tags or []):
+            active.add("ri_sp_coverage")
 
     return active
 

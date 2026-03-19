@@ -1,0 +1,1 @@
+https://aws.amazon.com/ko/blogs/tech/efficient-ebs-monitoring-with-mcp-at-scale/

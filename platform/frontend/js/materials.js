@@ -283,14 +283,28 @@ async function downloadFile(path, filename) {
       return;
     }
     const data = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${path}`);
-    const content = data.content;
-    const blob = new Blob([Uint8Array.from(atob(content), c => c.charCodeAt(0))]);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    // For large files (>1MB), GitHub returns download_url instead of content
+    if (data.download_url) {
+      const resp = await fetch(data.download_url);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (data.content) {
+      // Small files: base64 decode
+      const raw = atob(data.content.replace(/\n/g, ''));
+      const blob = new Blob([Uint8Array.from(raw, c => c.charCodeAt(0))]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   } catch (e) {
     alert('Download failed: ' + e.message);
   }

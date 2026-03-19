@@ -156,6 +156,7 @@
                   <span style="font-weight:700;font-size:16px;">${escapeHtml(p.title)}</span>
                   <span class="badge badge-${p.level}">${p.level}</span>
                   <span class="badge" style="background:var(--bg);color:var(--text-secondary);">${p.category}</span>
+                  ${p.revealed ? '<span class="badge badge-revealed">Answer Revealed</span>' : '<span class="badge badge-pending">Answer Hidden</span>'}
                 </div>
                 <div style="font-size:13px;color:var(--text-secondary);">
                   ${services ? `<span>${escapeHtml(services)}</span> · ` : ''}
@@ -197,15 +198,47 @@
           `;
           document.getElementById('pm-title').textContent = m.title;
 
-          // Show answer if author or admin
-          if (m.answer && (m.author === username || APP.isAdmin())) {
+          const isOwnerOrAdmin = m.author === username || APP.isAdmin();
+          const isRevealed = !!m.revealed;
+
+          // Show answer: if revealed (everyone) or if owner/admin (always)
+          if (m.answer && (isRevealed || isOwnerOrAdmin)) {
+            const answerLabel = isRevealed ? 'Answer (Public)' : 'Answer (you are the author)';
+            const answerBg = isRevealed ? 'var(--green-light)' : 'var(--orange-light)';
+            const answerBorder = isRevealed ? '#96f2d7' : '#ffe8a3';
+            const answerColor = isRevealed ? '#087f5b' : 'var(--orange)';
+
             html += `
-              <div style="margin-top:20px;padding:16px;background:var(--orange-light);border:1px solid #ffe8a3;border-radius:var(--radius-sm);">
-                <div style="font-weight:700;margin-bottom:8px;color:var(--orange);">Answer (you are the author)</div>
+              <div style="margin-top:20px;padding:16px;background:${answerBg};border:1px solid ${answerBorder};border-radius:var(--radius-sm);">
+                <div style="font-weight:700;margin-bottom:8px;color:${answerColor};">${answerLabel}</div>
                 <p><strong>Problem:</strong> ${escapeHtml(m.answer.problem_summary || '')}</p>
                 <p><strong>Root Cause:</strong> ${escapeHtml(m.answer.root_cause || '')}</p>
                 <p><strong>Recommendation:</strong> ${escapeHtml(m.answer.recommendation || '')}</p>
                 <p><strong>Severity:</strong> ${m.answer.severity} · <strong>Resources:</strong> ${(m.answer.problem_resources || []).join(', ')}</p>
+              </div>
+            `;
+          } else if (!isRevealed && !isOwnerOrAdmin) {
+            html += `
+              <div style="margin-top:20px;padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center;color:var(--text-muted);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <p style="font-weight:600;">Answer is hidden</p>
+                <p style="font-size:13px;">출제자가 정답을 공개하면 볼 수 있습니다.</p>
+              </div>
+            `;
+          }
+
+          // Reveal/Hide toggle button (owner or admin only)
+          if (isOwnerOrAdmin) {
+            const btnLabel = isRevealed ? 'Hide Answer' : 'Reveal Answer';
+            const btnClass = isRevealed ? 'btn' : 'btn btn-green';
+            const btnIcon = isRevealed
+              ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+              : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+            html += `
+              <div style="margin-top:16px;text-align:right;">
+                <button onclick="toggleReveal('${id}', '${week}', ${!isRevealed})" class="${btnClass} btn-sm" id="reveal-btn">
+                  ${btnIcon} ${btnLabel}
+                </button>
               </div>
             `;
           }
@@ -230,6 +263,64 @@
         document.getElementById('problem-modal').classList.add('active');
       } catch (e) {
         alert('Failed to load problem: ' + e.message);
+      }
+    }
+
+    async function toggleReveal(id, week, reveal) {
+      const btn = document.getElementById('reveal-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin:0;border-width:2px;"></div>';
+
+      try {
+        const weekStr = `week-${String(parseInt(week)).padStart(2, '0')}`;
+        const metaPath = `weeks/${weekStr}/community/${id}/meta.json`;
+
+        if (!APP.LOCAL) {
+          // 1. Update meta.json
+          const existing = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${metaPath}`);
+          const meta = JSON.parse(decodeURIComponent(escape(atob(existing.content))));
+          meta.revealed = reveal;
+
+          await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${metaPath}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `[community] ${reveal ? 'Reveal' : 'Hide'} answer for "${meta.title}"`,
+              content: btoa(unescape(encodeURIComponent(JSON.stringify(meta, null, 2)))),
+              sha: existing.sha,
+            }),
+          });
+
+          // 2. Update community index
+          const idxResp = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_community_index.json`);
+          const index = JSON.parse(decodeURIComponent(escape(atob(idxResp.content))));
+          const entry = index.find(p => p.id === id);
+          if (entry) entry.revealed = reveal;
+
+          await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_community_index.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: `[community] Update index: ${reveal ? 'reveal' : 'hide'} "${meta.title}"`,
+              content: btoa(unescape(encodeURIComponent(JSON.stringify(index, null, 2)))),
+              sha: idxResp.sha,
+            }),
+          });
+
+          // Update local state
+          const local = allProblems.find(p => p.id === id);
+          if (local) local.revealed = reveal;
+        }
+
+        // Refresh view
+        document.getElementById('problem-modal').classList.remove('active');
+        renderList();
+        alert(reveal ? 'Answer revealed!' : 'Answer hidden.');
+
+      } catch (e) {
+        alert('Failed: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = reveal ? 'Reveal Answer' : 'Hide Answer';
       }
     }
 

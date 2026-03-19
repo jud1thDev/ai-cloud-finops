@@ -155,6 +155,7 @@ async function publishProblem() {
       category,
       services: services.split(',').map(s => s.trim()).filter(Boolean),
       monthly_waste_usd: parseFloat(savings) || 0,
+      revealed: false,
       answer: {
         severity,
         problem_summary: problemSummary,
@@ -247,6 +248,7 @@ async function updateCommunityIndex(meta) {
     category: meta.category,
     services: meta.services,
     monthly_waste_usd: meta.monthly_waste_usd,
+    revealed: false,
   });
 
   const payload = {

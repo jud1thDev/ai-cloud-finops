@@ -48,5 +48,17 @@
     "files": [
       "content.md"
     ]
+  },
+  {
+    "id": "1773909795354-dev-jiseok",
+    "title": "대규모 환경에서의 MCP를 활용한 효율적인 EBS 모니터링",
+    "author": "dev-jiseok",
+    "date": "2026-03-19T08:43:15.354Z",
+    "week": "2",
+    "category": "note",
+    "description": "https://aws.amazon.com/ko/blogs/tech/efficient-ebs-monitoring-with-mcp-at-scale/",
+    "files": [
+      "content.md"
+    ]
   }
 ]

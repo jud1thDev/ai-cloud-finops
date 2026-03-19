@@ -1,10 +1,10 @@
 {
-  "username": "Pokingteemo",
+  "username": "PokingTeemo",
   "week": 2,
   "level": "L1",
-  "seed": 1334762027,
+  "seed": 1920229845,
   "scenarios": [
-    "L1-005"
+    "L1-001"
   ],
-  "company": "DataPilot"
+  "company": "QuickMart"
 }

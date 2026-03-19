@@ -1,18 +1,7 @@
 # Week 01 설정
 week: 1
-level: "L1"
-num_problems: 3
+level: null
+num_problems: 0
 category: null
-reveal_date: "2026-03-24"
-description: "FinOps 기초 - 명시적 비용 낭비 식별"
-generators:
-  - tf
-  - metrics
-  - cost_report
-scoring_weights:
-  schema: 1.0
-  resource: 1.0
-  savings: 1.0
-  terraform: 1.0
-  economics: 0.0
-  alerts: 0.0
+reveal_date: null
+description: "OT — 클라우드 기초, 환경 세팅"

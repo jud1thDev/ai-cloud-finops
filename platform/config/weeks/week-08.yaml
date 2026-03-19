@@ -3,8 +3,8 @@ week: 8
 level: "L3"
 num_problems: 2
 category: null
-reveal_date: "2026-05-12"
-description: "통합 실전 - 전체 파이프라인 종합 테스트"
+reveal_date: "2026-05-07"
+description: "L3 — 통합 실전 테스트 + 최종 발표"
 generators:
   - tf
   - metrics

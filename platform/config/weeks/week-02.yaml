@@ -1,10 +1,10 @@
 # Week 02 설정
 week: 2
 level: "L1"
-num_problems: 3
-category: null
-reveal_date: "2026-03-31"
-description: "FinOps 기초 - 종합 낭비 리소스 식별"
+num_problems: 1
+category: "unused"
+reveal_date: "2026-03-26"
+description: "FinOps 개념 + 플랫폼 소개 + 맛보기 문제"
 generators:
   - tf
   - metrics

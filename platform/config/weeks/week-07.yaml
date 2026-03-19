@@ -3,8 +3,8 @@ week: 7
 level: "L3"
 num_problems: 2
 category: null
-reveal_date: "2026-05-05"
-description: "L3 심화 - RI/SP 최적화 + 이상탐지 + 알림 생성"
+reveal_date: "2026-04-30"
+description: "L3 — RI/SP 최적화 + 이상탐지 + 알림 생성"
 generators:
   - tf
   - metrics

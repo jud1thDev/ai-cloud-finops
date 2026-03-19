@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Problem - FinOps Study</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">F</div>
+        <span class="brand-text">FinOps Study</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dashboard
+        </a>
+        <a href="problems.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Problems
+        </a>
+        <a href="submit.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Submit Answer
+        </a>
+        <a href="scores.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Scores
+        </a>
+        <a href="profile.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </a>
+        <a href="materials.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Materials
+        </a>
+        <a href="create-problem.html" class="sidebar-link active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Create Problem
+        </a>
+        <div class="sidebar-section-label">Admin</div>
+        <a href="admin.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Settings
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="auth-area"></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>Create Problem</h1>
+        </div>
+        <div class="topbar-right">
+          <a href="community-problems.html" class="btn btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Community Problems
+          </a>
+        </div>
+      </header>
+
+      <div class="content" style="max-width:900px;">
+        <div class="info-banner">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <div>직접 FinOps 문제를 만들어 스터디원들과 공유하세요. Terraform 코드와 정답을 작성하면 다른 멤버들이 풀 수 있습니다.</div>
+        </div>
+
+        <!-- Step 1: Basic Info -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">1. Basic Info</span>
+          </div>
+          <div class="card-body-lg">
+            <div class="form-group">
+              <label for="cp-title">Problem Title</label>
+              <input type="text" id="cp-title" placeholder="e.g. 미사용 Lambda@Edge 함수 과금">
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="cp-week">Week</label>
+                <select id="cp-week">
+                  <option value="1">Week 1</option>
+                  <option value="2">Week 2</option>
+                  <option value="3">Week 3</option>
+                  <option value="4">Week 4</option>
+                  <option value="5">Week 5</option>
+                  <option value="6">Week 6</option>
+                  <option value="7">Week 7</option>
+                  <option value="8">Week 8</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cp-level">Level</label>
+                <select id="cp-level">
+                  <option value="L1">L1 — 명시적 문제</option>
+                  <option value="L2">L2 — 패턴형 문제</option>
+                  <option value="L3">L3 — 아키텍처형 문제</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="cp-category">Category</label>
+                <select id="cp-category">
+                  <option value="unused">Unused (미사용 리소스)</option>
+                  <option value="overprovisioning">Overprovisioning (과잉 할당)</option>
+                  <option value="rate">Rate (요금 최적화)</option>
+                  <option value="anomaly">Anomaly (비용 이상)</option>
+                  <option value="tagging">Tagging (태그 미흡)</option>
+                  <option value="network">Network (네트워크 비용)</option>
+                  <option value="architecture">Architecture (아키텍처)</option>
+                  <option value="data">Data (데이터 비용)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cp-services">AWS Services (쉼표 구분)</label>
+                <input type="text" id="cp-services" placeholder="e.g. EC2, EBS, Lambda">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="cp-savings">Monthly Waste (USD)</label>
+              <input type="number" id="cp-savings" min="0" step="0.01" placeholder="150">
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Problem Description -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">2. Problem Description (Markdown)</span>
+            <span style="font-size:12px;color:var(--text-muted);">학생들이 보는 문제 설명</span>
+          </div>
+          <div class="card-body-lg">
+            <div class="form-group">
+              <textarea id="cp-description" style="min-height:200px;" placeholder="# 시나리오 배경
+
+가상 회사 TechCorp은 ...
+
+## 과제
+
+아래 Terraform 코드와 메트릭을 분석하여 비용 낭비 요소를 찾으세요.
+
+## 제공 자료
+- main.tf: 현재 인프라
+- metrics.json: 30일간 CloudWatch 메트릭
+- cost_report.json: 6개월 비용 히스토리"></textarea>
+              <p class="form-hint">Markdown 형식으로 작성. 학생들에게 보이는 문제 설명입니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Terraform Code -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">3. Terraform Code</span>
+            <span style="font-size:12px;color:var(--text-muted);">Required</span>
+          </div>
+          <div class="card-body-lg">
+            <div class="form-group">
+              <textarea id="cp-terraform" style="font-family:var(--mono);font-size:13px;min-height:300px;background:#1e1e2e;color:#cdd6f4;border-color:#313244;" placeholder='terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+resource "aws_instance" "problem_server" {
+  ami           = "ami-0123456789"
+  instance_type = "m5.xlarge"
+  # ... 문제가 있는 리소스
+}
+
+resource "aws_instance" "normal_server" {
+  ami           = "ami-0123456789"
+  instance_type = "t3.medium"
+  # ... 정상 리소스 (decoy)
+}'></textarea>
+              <p class="form-hint">문제 리소스와 정상 리소스(decoy)를 함께 포함하세요. 정답 힌트가 되는 주석은 넣지 마세요.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Additional Files -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header-bar">
+            <span style="font-weight:600;">4. Additional Files</span>
+            <span style="font-size:12px;color:var(--text-muted);">Optional</span>
+          </div>
+          <div class="card-body-lg">
+            <div class="info-banner" style="margin-bottom:16px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <div>메트릭(metrics.json), 비용 리포트(cost_report.json) 등 추가 데이터 파일을 업로드하세요.</div>
+            </div>
+            <div id="cp-drop-zone" class="drop-zone" onclick="document.getElementById('cp-file-input').click();">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <p style="margin-top:8px;font-weight:500;font-size:14px;">Click or drag files here</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">.json, .csv, .yaml, .txt (max 10MB)</p>
+            </div>
+            <input type="file" id="cp-file-input" multiple accept=".json,.csv,.yaml,.yml,.txt" style="display:none;" onchange="handleProblemFiles(this)">
+            <div id="cp-file-list" style="margin-top:8px;"></div>
+          </div>
+        </div>
+
+        <!-- Step 5: Answer (hidden from solvers) -->
+        <div class="card" style="margin-bottom:20px;border-color:var(--orange);">
+          <div class="card-header-bar" style="background:var(--orange-light);">
+            <span style="font-weight:600;">5. Answer (정답)</span>
+            <span class="badge" style="background:var(--orange);color:#fff;">출제자만 볼 수 있음</span>
+          </div>
+          <div class="card-body-lg">
+            <div class="form-group">
+              <label for="cp-problem-summary">Problem Summary (어떤 문제인가)</label>
+              <textarea id="cp-problem-summary" style="min-height:80px;" placeholder="45일간 중지된 EC2 인스턴스에 연결된 gp2 EBS 볼륨 3개가 매월 $150의 스토리지 비용을 발생시키고 있음"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="cp-root-cause">Root Cause (왜 발생하는가)</label>
+              <textarea id="cp-root-cause" style="min-height:80px;" placeholder="EC2 인스턴스를 Stop했지만 삭제하지 않아 EBS 볼륨이 계속 과금됨"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="cp-recommendation">Recommendation (해결 방안)</label>
+              <textarea id="cp-recommendation" style="min-height:80px;" placeholder="EBS 볼륨 스냅샷 생성 후 볼륨 및 인스턴스 삭제, 또는 gp3로 전환"></textarea>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="cp-severity">Severity</label>
+                <select id="cp-severity">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="cp-problem-resources">Problem Resources (쉼표 구분)</label>
+                <input type="text" id="cp-problem-resources" placeholder="e.g. instance-abc, volume-xyz">
+                <p class="form-hint">main.tf에서 문제가 있는 리소스 이름들</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="card">
+          <div class="card-body" style="display:flex;gap:10px;justify-content:space-between;align-items:center;">
+            <div style="font-size:13px;color:var(--text-muted);">
+              문제는 <code>weeks/week-XX/community/</code>에 저장됩니다.
+            </div>
+            <button onclick="publishProblem()" class="btn btn-primary" id="publish-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Publish Problem
+            </button>
+          </div>
+        </div>
+
+        <div id="cp-error" class="alert alert-error" style="display:none;margin-top:16px;"></div>
+        <div id="cp-success" class="alert alert-success" style="display:none;margin-top:16px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/create-problem.js"></script>
+</body>
+</html>

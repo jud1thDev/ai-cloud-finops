@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community Problems - FinOps Study</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">F</div>
+        <span class="brand-text">FinOps Study</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dashboard
+        </a>
+        <a href="problems.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Problems
+        </a>
+        <a href="submit.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Submit Answer
+        </a>
+        <a href="scores.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Scores
+        </a>
+        <a href="profile.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </a>
+        <a href="materials.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Materials
+        </a>
+        <a href="create-problem.html" class="sidebar-link active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Create Problem
+        </a>
+        <div class="sidebar-section-label">Admin</div>
+        <a href="admin.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Settings
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="auth-area"></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>Community Problems</h1>
+        </div>
+        <div class="topbar-right">
+          <a href="create-problem.html" class="btn btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Problem
+          </a>
+        </div>
+      </header>
+
+      <div class="content">
+        <div id="cp-loading" class="loading">
+          <div class="spinner"></div>
+          <p>Loading community problems...</p>
+        </div>
+
+        <div id="cp-content" style="display:none;">
+          <div class="tabs" id="cp-filter-tabs" style="margin-bottom:20px;"></div>
+          <div id="cp-list"></div>
+          <div id="cp-empty" class="empty-state" style="display:none;">
+            <h3>No community problems yet</h3>
+            <p>Be the first to create a problem for your team!</p>
+            <a href="create-problem.html" class="btn btn-primary" style="margin-top:16px;">Create Problem</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Problem Viewer Modal -->
+  <div class="modal-overlay" id="problem-modal">
+    <div class="modal" style="max-width:900px;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 id="pm-title" style="margin:0;"></h2>
+        <button onclick="document.getElementById('problem-modal').classList.remove('active')" class="btn btn-ghost btn-sm" style="padding:4px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="pm-content" style="overflow-y:auto;flex:1;"></div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    let allProblems = [];
+    let currentFilter = 'all';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await APP.init();
+      if (!APP.isLoggedIn()) { window.location.href = 'index.html'; return; }
+
+      try {
+        allProblems = await APP.getJSON('weeks/_community_index.json');
+      } catch {
+        allProblems = [];
+      }
+
+      buildTabs();
+      renderList();
+
+      document.getElementById('cp-loading').style.display = 'none';
+      document.getElementById('cp-content').style.display = 'block';
+    });
+
+    function buildTabs() {
+      const levels = [...new Set(allProblems.map(p => p.level))].sort();
+      let html = `<div class="tab active" onclick="filterList('all', this)">All (${allProblems.length})</div>`;
+      for (const l of levels) {
+        const count = allProblems.filter(p => p.level === l).length;
+        html += `<div class="tab" onclick="filterList('${l}', this)">${l} (${count})</div>`;
+      }
+      document.getElementById('cp-filter-tabs').innerHTML = html;
+    }
+
+    function filterList(filter, el) {
+      currentFilter = filter;
+      document.querySelectorAll('#cp-filter-tabs .tab').forEach(t => t.classList.remove('active'));
+      if (el) el.classList.add('active');
+      renderList();
+    }
+
+    function renderList() {
+      const filtered = currentFilter === 'all' ? allProblems : allProblems.filter(p => p.level === currentFilter);
+      const listEl = document.getElementById('cp-list');
+      const emptyEl = document.getElementById('cp-empty');
+
+      if (!filtered.length) { listEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+      emptyEl.style.display = 'none';
+
+      const sorted = [...filtered].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      listEl.innerHTML = sorted.map(p => {
+        const dateStr = p.date ? new Date(p.date).toLocaleDateString('ko-KR') : '';
+        const services = (p.services || []).join(', ');
+        return `
+          <div class="card" style="margin-bottom:12px;cursor:pointer;" onclick="viewProblem('${p.id}', '${p.week}')">
+            <div class="card-body" style="display:flex;gap:16px;align-items:center;">
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
+                  <span style="font-weight:700;font-size:16px;">${escapeHtml(p.title)}</span>
+                  <span class="badge badge-${p.level}">${p.level}</span>
+                  <span class="badge" style="background:var(--bg);color:var(--text-secondary);">${p.category}</span>
+                </div>
+                <div style="font-size:13px;color:var(--text-secondary);">
+                  ${services ? `<span>${escapeHtml(services)}</span> · ` : ''}
+                  <span>$${p.monthly_waste_usd}/mo</span> ·
+                  <span>by @${escapeHtml(p.author)}</span> ·
+                  <span>${dateStr}</span>
+                </div>
+              </div>
+              <span style="color:var(--text-muted);">&rarr;</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function viewProblem(id, week) {
+      const weekStr = `week-${String(parseInt(week)).padStart(2, '0')}`;
+      const basePath = `weeks/${weekStr}/community/${id}`;
+      const username = APP.getUsername();
+
+      try {
+        const [readme, terraform, meta] = await Promise.allSettled([
+          APP.getFileContent(`${basePath}/README.md`),
+          APP.getFileContent(`${basePath}/main.tf`),
+          APP.getJSON(`${basePath}/meta.json`),
+        ]);
+
+        let html = '';
+
+        // Meta info
+        if (meta.status === 'fulfilled') {
+          const m = meta.value;
+          html += `
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+              <span class="badge badge-${m.level}">${m.level}</span>
+              <span class="badge" style="background:var(--bg);color:var(--text-secondary);">${m.category}</span>
+              <span style="font-size:13px;color:var(--text-muted);">by @${escapeHtml(m.author)} · Week ${m.week} · $${m.monthly_waste_usd}/mo</span>
+            </div>
+          `;
+          document.getElementById('pm-title').textContent = m.title;
+
+          // Show answer if author or admin
+          if (m.answer && (m.author === username || APP.isAdmin())) {
+            html += `
+              <div style="margin-top:20px;padding:16px;background:var(--orange-light);border:1px solid #ffe8a3;border-radius:var(--radius-sm);">
+                <div style="font-weight:700;margin-bottom:8px;color:var(--orange);">Answer (you are the author)</div>
+                <p><strong>Problem:</strong> ${escapeHtml(m.answer.problem_summary || '')}</p>
+                <p><strong>Root Cause:</strong> ${escapeHtml(m.answer.root_cause || '')}</p>
+                <p><strong>Recommendation:</strong> ${escapeHtml(m.answer.recommendation || '')}</p>
+                <p><strong>Severity:</strong> ${m.answer.severity} · <strong>Resources:</strong> ${(m.answer.problem_resources || []).join(', ')}</p>
+              </div>
+            `;
+          }
+        }
+
+        // README
+        if (readme.status === 'fulfilled') {
+          html += `<div style="margin-top:20px;line-height:1.8;">${markdownToHtml(readme.value)}</div>`;
+        }
+
+        // Terraform
+        if (terraform.status === 'fulfilled') {
+          html += `
+            <div style="margin-top:20px;">
+              <div style="font-weight:600;margin-bottom:8px;">main.tf</div>
+              <pre style="max-height:400px;overflow:auto;"><code>${escapeHtml(terraform.value)}</code></pre>
+            </div>
+          `;
+        }
+
+        document.getElementById('pm-content').innerHTML = html;
+        document.getElementById('problem-modal').classList.add('active');
+      } catch (e) {
+        alert('Failed to load problem: ' + e.message);
+      }
+    }
+
+    function markdownToHtml(md) {
+      return md
+        .replace(/^### (.+)$/gm, '<h4 style="margin:16px 0 8px;font-size:15px;">$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3 style="margin:20px 0 10px;font-size:17px;">$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2 style="margin:24px 0 12px;font-size:20px;">$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.+?)`/g, '<code>$1</code>')
+        .replace(/^- (.+)$/gm, '<li style="margin-left:20px;margin-bottom:4px;">$1</li>')
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+    }
+  </script>
+</body>
+</html>

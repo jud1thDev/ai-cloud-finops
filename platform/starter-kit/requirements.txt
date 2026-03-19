@@ -1,0 +1,6 @@
+# No external dependencies required!
+# The starter kit uses only Python standard library.
+#
+# Optional (for enhanced features):
+# jsonschema>=4.0    # Output schema validation
+# python-hcl2>=4.0   # Terraform HCL parsing

@@ -1,18 +1,19 @@
 # Week 03 설정
 week: 3
-level: "L1"
+level: "L2"
 num_problems: 3
 category: null
 reveal_date: "2026-04-07"
-description: "FinOps 기초 - 종합 낭비 리소스 식별"
+description: "단위경제 분석 - 비용 효율성 지표 도입"
 generators:
   - tf
   - metrics
   - cost_report
+  - business_metrics
 scoring_weights:
   schema: 1.0
   resource: 1.0
   savings: 1.0
   terraform: 1.0
-  economics: 0.0
+  economics: 1.0
   alerts: 0.0

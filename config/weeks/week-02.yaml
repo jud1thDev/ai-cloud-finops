@@ -4,7 +4,7 @@ level: "L1"
 num_problems: 3
 category: null
 reveal_date: "2026-03-31"
-description: "FinOps 기초 - 스토리지 및 네트워크 낭비 식별"
+description: "FinOps 기초 - 종합 낭비 리소스 식별"
 generators:
   - tf
   - metrics

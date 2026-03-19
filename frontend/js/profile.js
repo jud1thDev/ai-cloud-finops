@@ -119,7 +119,7 @@ async function loadProfile(username, isOwnProfile) {
 
 async function gatherSubmissions(username) {
   const submissions = [];
-  for (let week = 1; week <= 10; week++) {
+  for (let week = 1; week <= 8; week++) {
     const weekStr = `week-${String(week).padStart(2, '0')}`;
     try {
       const files = await APP.listDir(`submissions/${weekStr}/${username}`);
@@ -142,7 +142,7 @@ async function gatherSubmissions(username) {
 
 async function gatherScores(username) {
   const scores = [];
-  for (let week = 1; week <= 10; week++) {
+  for (let week = 1; week <= 8; week++) {
     const weekStr = `week-${String(week).padStart(2, '0')}`;
     try {
       const data = await APP.getJSON(`scores/${weekStr}/${username}.json`);
@@ -169,7 +169,7 @@ async function gatherScores(username) {
 
 async function gatherAssignments(username) {
   const assignments = [];
-  for (let week = 1; week <= 10; week++) {
+  for (let week = 1; week <= 8; week++) {
     const weekStr = `week-${String(week).padStart(2, '0')}`;
     try {
       const data = await APP.getJSON(`problems/${weekStr}/${username}/assignment.json`);

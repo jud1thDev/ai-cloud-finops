@@ -2,8 +2,8 @@
 week: 1
 level: "L1"
 num_problems: 3
-category: null          # null = 전체 카테고리에서 선택
-reveal_date: "2026-03-24"   # 정답 공개일 (KST 09:00)
+category: null
+reveal_date: "2026-03-24"
 description: "FinOps 기초 - 명시적 비용 낭비 식별"
 generators:
   - tf

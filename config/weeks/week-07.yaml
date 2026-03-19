@@ -1,20 +1,23 @@
 # Week 07 설정
 week: 7
-level: "L2"
-num_problems: 3
-category: "tagging"
+level: "L3"
+num_problems: 2
+category: null
 reveal_date: "2026-05-05"
-description: "태그 거버넌스 심화 - 태그 누락 탐지 및 Terraform 수정"
+description: "L3 심화 - RI/SP 최적화 + 이상탐지 + 알림 생성"
 generators:
   - tf
   - metrics
   - cost_report
   - business_metrics
   - tags_inventory
+  - cloudwatch_format
+  - cur_report
+  - ri_sp_coverage
 scoring_weights:
   schema: 1.0
   resource: 1.0
   savings: 1.0
   terraform: 1.0
   economics: 1.0
-  alerts: 0.0
+  alerts: 1.0

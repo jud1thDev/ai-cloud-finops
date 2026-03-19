@@ -2,9 +2,9 @@
 week: 6
 level: "L2"
 num_problems: 3
-category: null
+category: "tagging"
 reveal_date: "2026-04-28"
-description: "탄력성 진단 - 태그 거버넌스와 리소스 탄력성"
+description: "태그 거버넌스 심화 - 태그 누락 탐지 및 Terraform 수정"
 generators:
   - tf
   - metrics

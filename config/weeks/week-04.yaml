@@ -2,9 +2,9 @@
 week: 4
 level: "L2"
 num_problems: 3
-category: null
+category: "overprovisioning"
 reveal_date: "2026-04-14"
-description: "단위경제 분석 - 비용 효율성 지표 도입"
+description: "단위경제 심화 - 오버프로비저닝 패턴 분석"
 generators:
   - tf
   - metrics

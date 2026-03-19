@@ -2,17 +2,18 @@
 week: 8
 level: "L3"
 num_problems: 2
-category: "rate"
+category: null
 reveal_date: "2026-05-12"
-description: "RI/SP 최적화 - 예약 인스턴스 및 Savings Plan 전략"
+description: "통합 실전 - 전체 파이프라인 종합 테스트"
 generators:
   - tf
   - metrics
   - cost_report
   - business_metrics
   - tags_inventory
-  - ri_sp_coverage
+  - cloudwatch_format
   - cur_report
+  - ri_sp_coverage
 scoring_weights:
   schema: 1.0
   resource: 1.0

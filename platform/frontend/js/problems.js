@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('page-title').textContent = `Week ${week} Problems`;
 
   try {
-    const assignment = await APP.getJSON(`problems/week-${week.padStart(2, '0')}/${username}/assignment.json`);
+    const assignment = await APP.getJSON(`members/${username}/problems/week-${week.padStart(2, '0')}/assignment.json`);
     const level = assignment.level;
 
     const levelBadge = document.getElementById('level-badge');
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadScenario(week, username, scenarioId, tabEl) {
   const weekStr = String(week).padStart(2, '0');
-  const basePath = `problems/week-${weekStr}/${username}/${scenarioId}`;
+  const basePath = `members/${username}/problems/week-${weekStr}/${scenarioId}`;
 
   if (tabEl) {
     document.querySelectorAll('#scenario-tabs .tab').forEach(t => t.classList.remove('active'));

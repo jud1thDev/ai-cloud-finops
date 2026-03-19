@@ -30,8 +30,8 @@ finops-sim = "finops_sim.cli:main"
 finops-study = "finops_study.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["platform/src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
+testpaths = ["platform/tests"]
+pythonpath = ["platform/src"]

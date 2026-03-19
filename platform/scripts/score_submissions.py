@@ -17,8 +17,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
+PLATFORM_DIR = Path(__file__).resolve().parent.parent
+ROOT = PLATFORM_DIR.parent
+sys.path.insert(0, str(PLATFORM_DIR / "src"))
 
 
 def normalize(text: str) -> str:
@@ -136,10 +137,7 @@ def main():
     parser = argparse.ArgumentParser(description="Score submissions for a week")
     parser.add_argument("--week", type=int, required=True)
     parser.add_argument(
-        "--submissions-dir", type=str, default=str(ROOT / "submissions"),
-    )
-    parser.add_argument(
-        "--answers-dir", type=str, default=str(ROOT / "answers"),
+        "--members-dir", type=str, default=str(ROOT / "members"),
     )
     parser.add_argument(
         "--output", type=str, default=str(ROOT / "scores"),
@@ -147,36 +145,37 @@ def main():
     args = parser.parse_args()
 
     week_str = f"week-{args.week:02d}"
-    submissions_dir = Path(args.submissions_dir) / week_str
-    answers_dir = Path(args.answers_dir) / week_str
+    members_dir = Path(args.members_dir)
     scores_dir = Path(args.output) / week_str
 
-    if not answers_dir.exists():
-        print(f"Answers not yet revealed for {week_str}")
-        sys.exit(0)
-
-    if not submissions_dir.exists():
-        print(f"No submissions found for {week_str}")
+    if not members_dir.exists():
+        print(f"No members directory found")
         sys.exit(0)
 
     scores_dir.mkdir(parents=True, exist_ok=True)
     summary = {"week": args.week, "members": {}}
 
     # Iterate over member directories
-    for member_dir in sorted(submissions_dir.iterdir()):
-        if not member_dir.is_dir():
+    for member_dir in sorted(members_dir.iterdir()):
+        if not member_dir.is_dir() or member_dir.name.startswith('_'):
             continue
 
         username = member_dir.name
+        sub_dir = member_dir / "submissions" / week_str
+        answer_base = member_dir / "problems" / week_str
+
+        if not sub_dir.exists():
+            continue
+
         member_scores = {"username": username, "scenarios": {}, "total": 0, "max_total": 0}
 
-        for sub_file in sorted(member_dir.glob("*.json")):
+        for sub_file in sorted(sub_dir.glob("*.json")):
             scenario_id = sub_file.stem
             submission = json.loads(sub_file.read_text(encoding="utf-8"))
 
             # Load corresponding answer and rubric
-            answer_file = answers_dir / username / scenario_id / "answer.json"
-            rubric_file = answers_dir / username / scenario_id / "scoring_rubric.json"
+            answer_file = answer_base / scenario_id / "answer.json"
+            rubric_file = answer_base / scenario_id / "scoring_rubric.json"
 
             if not answer_file.exists():
                 print(f"  Warning: No answer for {username}/{scenario_id}")
@@ -186,7 +185,7 @@ def main():
             rubric = json.loads(rubric_file.read_text(encoding="utf-8")) if rubric_file.exists() else {}
 
             # Check for business metrics
-            bm_file = answers_dir / username / scenario_id / "business_metrics.json"
+            bm_file = answer_base / scenario_id / "business_metrics.json"
             bm = json.loads(bm_file.read_text(encoding="utf-8")) if bm_file.exists() else None
 
             level = answer.get("level", "L1")

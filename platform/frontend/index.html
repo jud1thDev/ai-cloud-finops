@@ -145,17 +145,17 @@
       }
 
       try {
-        const weekFiles = await APP.listDir('config/weeks');
+        const weekFiles = await APP.listDir('platform/config/weeks');
         const weeks = [];
         for (const f of weekFiles) {
           if (f.name.endsWith('.yaml')) {
-            try { weeks.push(await APP.getYAML(`config/weeks/${f.name}`)); } catch {}
+            try { weeks.push(await APP.getYAML(`platform/config/weeks/${f.name}`)); } catch {}
           }
         }
 
         let memberCount = 0;
         try {
-          const m = await APP.getFileContent('config/members.yaml');
+          const m = await APP.getFileContent('platform/config/members.yaml');
           memberCount = (m.match(/- username:/g) || []).length;
         } catch {}
 

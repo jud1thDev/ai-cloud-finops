@@ -2,7 +2,7 @@
  * materials.js — Study materials bulletin board
  *
  * Storage structure in GitHub repo:
- *   materials/
+ *   weeks/
  *     _index.json              ← master index of all posts
  *     week-01/
  *       {post-id}/
@@ -84,7 +84,7 @@ async function loadMaterials() {
 
 async function loadIndex() {
   try {
-    return await APP.getJSON('materials/_index.json');
+    return await APP.getJSON('weeks/_index.json');
   } catch {
     return [];
   }
@@ -198,7 +198,7 @@ async function viewPost(postId) {
   if (!post) return;
 
   const weekDir = post.week === 'general' ? 'general' : `week-${String(post.week).padStart(2, '0')}`;
-  const basePath = `materials/${weekDir}/${postId}`;
+  const basePath = `weeks/${weekDir}/${postId}`;
 
   const cat = CATEGORY_LABELS[post.category] || CATEGORY_LABELS.other;
   const dateStr = post.date ? new Date(post.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
@@ -401,7 +401,7 @@ async function uploadMaterial() {
     const now = new Date().toISOString();
     const postId = `${Date.now()}-${username}`;
     const weekDir = week === 'general' ? 'general' : `week-${String(parseInt(week)).padStart(2, '0')}`;
-    const basePath = `materials/${weekDir}/${postId}`;
+    const basePath = `weeks/${weekDir}/${postId}`;
 
     // Build meta
     const meta = {
@@ -422,7 +422,7 @@ async function uploadMaterial() {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            message: `[materials] Upload ${file.name} by ${username}`,
+            message: `[weeks] Upload ${file.name} by ${username}`,
             content: file.base64,
           }),
         });
@@ -434,7 +434,7 @@ async function uploadMaterial() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `[materials] Add "${title}" by ${username}`,
+          message: `[weeks] Add "${title}" by ${username}`,
           content: metaContent,
         }),
       });
@@ -446,17 +446,17 @@ async function uploadMaterial() {
       // Get existing sha if exists
       let indexSha = null;
       try {
-        const existing = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/materials/_index.json`);
+        const existing = await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_index.json`);
         indexSha = existing.sha;
       } catch {}
 
       const indexPayload = {
-        message: `[materials] Update index: add "${title}"`,
+        message: `[weeks] Update index: add "${title}"`,
         content: indexContent,
       };
       if (indexSha) indexPayload.sha = indexSha;
 
-      await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/materials/_index.json`, {
+      await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/weeks/_index.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(indexPayload),

@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadMemberSwitcher(currentUser) {
   const select = document.getElementById('member-select');
   try {
-    const content = await APP.getFileContent('config/members.yaml');
+    const content = await APP.getFileContent('platform/config/members.yaml');
     const matches = content.match(/username:\s*"?([^"\n]+)"?/g) || [];
     const members = matches.map(m => m.replace(/username:\s*"?/, '').replace(/"$/, ''));
 
@@ -122,7 +122,7 @@ async function gatherSubmissions(username) {
   for (let week = 1; week <= 8; week++) {
     const weekStr = `week-${String(week).padStart(2, '0')}`;
     try {
-      const files = await APP.listDir(`submissions/${weekStr}/${username}`);
+      const files = await APP.listDir(`members/${username}/submissions/${weekStr}`);
       if (files && files.length > 0) {
         for (const f of files) {
           if (f.name.endsWith('.json')) {
@@ -172,7 +172,7 @@ async function gatherAssignments(username) {
   for (let week = 1; week <= 8; week++) {
     const weekStr = `week-${String(week).padStart(2, '0')}`;
     try {
-      const data = await APP.getJSON(`problems/${weekStr}/${username}/assignment.json`);
+      const data = await APP.getJSON(`members/${username}/problems/${weekStr}/assignment.json`);
       assignments.push({
         week,
         level: data.level,

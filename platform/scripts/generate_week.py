@@ -19,8 +19,9 @@ from typing import Optional, Set
 import yaml
 
 # Add project root to path
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
+PLATFORM_DIR = Path(__file__).resolve().parent.parent
+ROOT = PLATFORM_DIR.parent
+sys.path.insert(0, str(PLATFORM_DIR / "src"))
 
 from finops_sim.generators.orchestrator import _generate_one
 from finops_sim.catalog.selector import select_scenarios
@@ -90,7 +91,7 @@ def generate_for_member(
 ) -> list[dict]:
     """Generate problems for a single member."""
     seed = compute_seed(username, week, salt)
-    member_dir = output_base / f"week-{week:02d}" / username
+    member_dir = output_base / username / "problems" / f"week-{week:02d}"
 
     # Use generate_auto logic but with member-specific seed
     company = generate_company_profile(seed)
@@ -150,11 +151,11 @@ def main():
         help="Group salt for seed (default: GROUP_SALT env var)",
     )
     parser.add_argument(
-        "--output", type=str, default=str(ROOT / "problems"),
-        help="Output base directory",
+        "--output", type=str, default=str(ROOT / "members"),
+        help="Output base directory (members/)",
     )
     parser.add_argument(
-        "--config-dir", type=str, default=str(ROOT / "config"),
+        "--config-dir", type=str, default=str(PLATFORM_DIR / "config"),
         help="Config directory",
     )
     args = parser.parse_args()
@@ -196,7 +197,7 @@ def main():
         scenarios = [r["scenario_id"] for r in results]
         print(f"  -> {len(results)} problems: {', '.join(scenarios)}")
 
-    print(f"\nDone! Problems written to {output_base}/week-{args.week:02d}/")
+    print(f"\nDone! Problems written to {output_base}/*/problems/week-{args.week:02d}/")
 
 
 if __name__ == "__main__":

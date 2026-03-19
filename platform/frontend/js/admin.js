@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadMembers() {
   const el = document.getElementById('members-list');
   try {
-    const content = await APP.getFileContent('config/members.yaml');
+    const content = await APP.getFileContent('platform/config/members.yaml');
     const lines = content.split('\n');
     const members = [];
     let current = null;

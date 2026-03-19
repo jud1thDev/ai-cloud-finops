@@ -10,7 +10,7 @@ const APP = {
 
   // Local dev mode: serves files from project root instead of GitHub API
   LOCAL: location.hostname === 'localhost' || location.hostname === '127.0.0.1',
-  LOCAL_BASE: '..', // relative path from frontend/ to project root
+  LOCAL_BASE: '../..', // relative path from platform/frontend/ to project root
 
   /** Get stored GitHub token */
   getToken() {
@@ -151,7 +151,7 @@ const APP = {
 
       // Check admin status from group.yaml
       try {
-        const groupYaml = await this.getFileContent('config/group.yaml');
+        const groupYaml = await this.getFileContent('platform/config/group.yaml');
         const isAdmin = groupYaml.includes(user.login) &&
           groupYaml.split('admins:')[1]?.includes(user.login);
         localStorage.setItem('gh_is_admin', isAdmin ? 'true' : 'false');
@@ -203,7 +203,7 @@ const APP = {
 
     // Try to load from group.yaml, fall back to defaults
     try {
-      const content = await this.getFileContent('config/group.yaml');
+      const content = await this.getFileContent('platform/config/group.yaml');
       const repoMatch = content.match(/repo:\s*"?([^"\n]+)"?/);
       if (repoMatch) {
         const [owner, repo] = repoMatch[1].split('/');

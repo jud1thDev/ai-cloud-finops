@@ -259,7 +259,7 @@ async function submitAnswer() {
   try {
     const weekStr = `week-${String(parseInt(data.week)).padStart(2, '0')}`;
     const username = APP.getUsername();
-    const basePath = `submissions/${weekStr}/${username}`;
+    const basePath = `members/${username}/submissions/${weekStr}`;
 
     // 1. Upload attached files to repo (if any, and not in local mode)
     if (uploadedFiles.length > 0 && !APP.LOCAL) {

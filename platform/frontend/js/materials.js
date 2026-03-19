@@ -390,7 +390,7 @@ async function uploadMaterial() {
   const description = document.getElementById('mat-description').value.trim();
 
   if (!title) { errorEl.textContent = 'Title is required'; return; }
-  if (materialFiles.length === 0) { errorEl.textContent = 'At least one file is required'; return; }
+  // Files are optional — text-only posts are allowed
 
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;border-width:2px;"></div> Uploading...';
@@ -403,6 +403,12 @@ async function uploadMaterial() {
     const weekDir = week === 'general' ? 'general' : `week-${String(parseInt(week)).padStart(2, '0')}`;
     const basePath = `weeks/${weekDir}/${postId}`;
 
+    // If no files but has description, save description as content.md
+    const fileNames = materialFiles.map(f => f.name);
+    if (materialFiles.length === 0 && description) {
+      fileNames.push('content.md');
+    }
+
     // Build meta
     const meta = {
       id: postId,
@@ -412,10 +418,23 @@ async function uploadMaterial() {
       week,
       category,
       description,
-      files: materialFiles.map(f => f.name),
+      files: fileNames,
     };
 
     if (!APP.LOCAL) {
+      // 0. If text-only post, save description as content.md
+      if (materialFiles.length === 0 && description) {
+        const mdContent = btoa(unescape(encodeURIComponent(description)));
+        await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/content.md`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `[weeks] Add content.md for "${title}" by ${username}`,
+            content: mdContent,
+          }),
+        });
+      }
+
       // 1. Upload each file
       for (const file of materialFiles) {
         await APP.api(`/repos/${APP.OWNER}/${APP.REPO}/contents/${basePath}/${file.name}`, {

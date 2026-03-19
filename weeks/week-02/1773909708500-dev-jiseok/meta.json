@@ -1,0 +1,12 @@
+{
+  "id": "1773909708500-dev-jiseok",
+  "title": "Resize Images on the Fly with Amazon S3, AWS Lambda, and Amazon API Gateway",
+  "author": "dev-jiseok",
+  "date": "2026-03-19T08:41:48.500Z",
+  "week": "2",
+  "category": "note",
+  "description": "https://aws.amazon.com/ko/blogs/compute/resize-images-on-the-fly-with-amazon-s3-aws-lambda-and-amazon-api-gateway/",
+  "files": [
+    "content.md"
+  ]
+}

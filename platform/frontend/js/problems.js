@@ -15,9 +15,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const params = new URLSearchParams(window.location.search);
-  const week = params.get('week') || '1';
+  const week = params.get('week');
   const username = APP.getUsername();
 
+  // No week param → show week selector
+  if (!week) {
+    await showWeekSelector(username);
+    return;
+  }
+
+  document.getElementById('problem-loading').style.display = 'block';
   document.getElementById('page-title').textContent = `Week ${week} Problems`;
 
   try {
@@ -56,6 +63,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 });
+
+async function showWeekSelector(username) {
+  const GRADIENTS = ['grad-teal', 'grad-blue', 'grad-purple', 'grad-orange', 'grad-pink', 'grad-green', 'grad-teal', 'grad-blue'];
+
+  document.getElementById('page-title').textContent = 'Problems';
+
+  // Load week configs
+  let weeks = [];
+  try {
+    const weekFiles = await APP.listDir('platform/config/weeks');
+    for (const f of weekFiles) {
+      if (f.name && f.name.endsWith('.yaml')) {
+        try { weeks.push(await APP.getYAML(`platform/config/weeks/${f.name}`)); } catch {}
+      }
+    }
+  } catch {}
+
+  // Check which weeks have problems for this user
+  const cardsEl = document.getElementById('week-cards');
+
+  if (weeks.length === 0) {
+    // Fallback: show week 1-8
+    for (let i = 1; i <= 8; i++) weeks.push({ week: i, level: 'L1', description: `Week ${i}`, num_problems: 3 });
+  }
+
+  cardsEl.innerHTML = weeks.map((w, i) => {
+    const grad = GRADIENTS[((w.week || i + 1) - 1) % GRADIENTS.length];
+    const weekNum = w.week || (i + 1);
+    return `
+      <a href="problems.html?week=${weekNum}" class="card card-gradient" style="text-decoration:none;color:inherit;">
+        <div class="card-cover ${grad}">
+          <span class="cover-badge">${w.level || 'L1'}</span>
+          <div class="cover-label">Week ${weekNum}</div>
+          <div class="cover-title">${escapeHtml(w.description || 'FinOps Problem')}</div>
+        </div>
+        <div class="card-meta">
+          <span class="meta-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+            ${w.num_problems || 3} problems
+          </span>
+        </div>
+        <div class="card-actions">
+          <span style="font-size:13px;color:var(--text-muted);">View problems</span>
+          <span class="arrow">&rarr;</span>
+        </div>
+      </a>
+    `;
+  }).join('');
+
+  document.getElementById('week-selector').style.display = 'block';
+}
 
 async function loadScenario(week, username, scenarioId, tabEl) {
   const weekStr = String(week).padStart(2, '0');

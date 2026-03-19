@@ -71,7 +71,16 @@
       </header>
 
       <div class="content">
-        <div id="problem-loading" class="loading">
+        <!-- Week selector (shown when no week param) -->
+        <div id="week-selector" style="display:none;">
+          <div class="info-banner" style="margin-bottom:24px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div>주차를 선택하면 배정된 문제가 표시됩니다.</div>
+          </div>
+          <div class="grid grid-3" id="week-cards"></div>
+        </div>
+
+        <div id="problem-loading" class="loading" style="display:none;">
           <div class="spinner"></div>
           <p>Loading problems...</p>
         </div>

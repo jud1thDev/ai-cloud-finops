@@ -60,5 +60,17 @@
     "files": [
       "content.md"
     ]
+  },
+  {
+    "id": "1773910342605-dev-jiseok",
+    "title": "FinOps 비용 낭비 시나리오 40선 - 참고용!",
+    "author": "dev-jiseok",
+    "date": "2026-03-19T08:52:22.605Z",
+    "week": "2",
+    "category": "note",
+    "description": "",
+    "files": [
+      "scenarios-guide.md"
+    ]
   }
 ]

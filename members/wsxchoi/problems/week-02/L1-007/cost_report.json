@@ -1,0 +1,129 @@
+{
+  "scenario_id": "L1-007",
+  "currency": "USD",
+  "period_months": 6,
+  "monthly_data": [
+    {
+      "month_offset": 5,
+      "label": "M-5",
+      "total_spend_usd": 549.08,
+      "waste_usd": 96.64,
+      "waste_pct": 17.6,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 104.94,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 444.14,
+          "contains_waste": false
+        }
+      ]
+    },
+    {
+      "month_offset": 4,
+      "label": "M-4",
+      "total_spend_usd": 487.76,
+      "waste_usd": 100.07,
+      "waste_pct": 20.5,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 128.74,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 359.02,
+          "contains_waste": false
+        }
+      ]
+    },
+    {
+      "month_offset": 3,
+      "label": "M-3",
+      "total_spend_usd": 518.64,
+      "waste_usd": 104.02,
+      "waste_pct": 20.1,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 152.67,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 365.97,
+          "contains_waste": false
+        }
+      ]
+    },
+    {
+      "month_offset": 2,
+      "label": "M-2",
+      "total_spend_usd": 481.14,
+      "waste_usd": 100.03,
+      "waste_pct": 20.8,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 109.74,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 371.4,
+          "contains_waste": false
+        }
+      ]
+    },
+    {
+      "month_offset": 1,
+      "label": "M-1",
+      "total_spend_usd": 488.35,
+      "waste_usd": 98.18,
+      "waste_pct": 20.1,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 141.61,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 346.74,
+          "contains_waste": false
+        }
+      ]
+    },
+    {
+      "month_offset": 0,
+      "label": "M-0",
+      "total_spend_usd": 489.52,
+      "waste_usd": 100.17,
+      "waste_pct": 20.5,
+      "services": [
+        {
+          "service": "EBS",
+          "spend_usd": 123.68,
+          "contains_waste": true
+        },
+        {
+          "service": "EC2",
+          "spend_usd": 365.84,
+          "contains_waste": false
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "avg_monthly_total": 502.41,
+    "avg_monthly_waste": 99.85,
+    "waste_services": [
+      "EBS"
+    ],
+    "pricing_note": "EBS 스냅샷: 2TB × $0.05/GB = $100/mo"
+  }
+}

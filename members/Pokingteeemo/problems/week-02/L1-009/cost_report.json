@@ -1,0 +1,99 @@
+{
+  "scenario_id": "L1-009",
+  "currency": "USD",
+  "period_months": 6,
+  "monthly_data": [
+    {
+      "month_offset": 5,
+      "label": "M-5",
+      "total_spend_usd": 270.17,
+      "waste_usd": 20.57,
+      "waste_pct": 7.6,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 20.72,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 4,
+      "label": "M-4",
+      "total_spend_usd": 279.33,
+      "waste_usd": 19.24,
+      "waste_pct": 6.9,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 22.67,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 3,
+      "label": "M-3",
+      "total_spend_usd": 255.81,
+      "waste_usd": 20.1,
+      "waste_pct": 7.9,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 27.59,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 2,
+      "label": "M-2",
+      "total_spend_usd": 263.96,
+      "waste_usd": 19.62,
+      "waste_pct": 7.4,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 26.84,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 1,
+      "label": "M-1",
+      "total_spend_usd": 257.33,
+      "waste_usd": 20.91,
+      "waste_pct": 8.1,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 21.62,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 0,
+      "label": "M-0",
+      "total_spend_usd": 289.6,
+      "waste_usd": 19.34,
+      "waste_pct": 6.7,
+      "services": [
+        {
+          "service": "ECR",
+          "spend_usd": 24.06,
+          "contains_waste": true
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "avg_monthly_total": 269.37,
+    "avg_monthly_waste": 19.96,
+    "waste_services": [
+      "ECR"
+    ],
+    "pricing_note": "ECR 스토리지: 200GB × $0.10/GB = $20/mo"
+  }
+}

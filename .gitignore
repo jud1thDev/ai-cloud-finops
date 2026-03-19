@@ -19,6 +19,5 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Generated data (created by scripts/Actions, not manually)
-members/*/problems/
+# Generated data
 answers/

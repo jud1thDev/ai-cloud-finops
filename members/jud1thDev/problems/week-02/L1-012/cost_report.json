@@ -1,0 +1,99 @@
+{
+  "scenario_id": "L1-012",
+  "currency": "USD",
+  "period_months": 6,
+  "monthly_data": [
+    {
+      "month_offset": 5,
+      "label": "M-5",
+      "total_spend_usd": 2569.78,
+      "waste_usd": 227.61,
+      "waste_pct": 8.9,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 242.36,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 4,
+      "label": "M-4",
+      "total_spend_usd": 2413.73,
+      "waste_usd": 221.41,
+      "waste_pct": 9.2,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 323.71,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 3,
+      "label": "M-3",
+      "total_spend_usd": 2551.69,
+      "waste_usd": 218.53,
+      "waste_pct": 8.6,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 238.32,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 2,
+      "label": "M-2",
+      "total_spend_usd": 2315.72,
+      "waste_usd": 233.69,
+      "waste_pct": 10.1,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 285.2,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 1,
+      "label": "M-1",
+      "total_spend_usd": 2589.23,
+      "waste_usd": 233.79,
+      "waste_pct": 9.0,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 305.49,
+          "contains_waste": true
+        }
+      ]
+    },
+    {
+      "month_offset": 0,
+      "label": "M-0",
+      "total_spend_usd": 2476.71,
+      "waste_usd": 221.16,
+      "waste_pct": 8.9,
+      "services": [
+        {
+          "service": "S3",
+          "spend_usd": 293.26,
+          "contains_waste": true
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "avg_monthly_total": 2486.14,
+    "avg_monthly_waste": 226.03,
+    "waste_services": [
+      "S3"
+    ],
+    "pricing_note": "10 TB noncurrent × $0.023/GB = 10,240 GB × $0.023 ≈ $235 → ~$230/mo"
+  }
+}

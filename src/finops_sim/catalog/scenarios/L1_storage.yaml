@@ -1,0 +1,254 @@
+scenarios:
+  # ──────────────────────────────────────────────
+  # L1-011: S3 Lifecycle 정책 없음
+  # ──────────────────────────────────────────────
+  - id: "L1-011"
+    title: "S3 Lifecycle 정책 없음 — Standard 영구 적체"
+    category: "rate"
+    level: "L1"
+    aws_services: ["S3"]
+    description: |
+      S3 버킷 2개(총 10 TB)에 Lifecycle 정책이 전혀 설정되어 있지 않아,
+      90일 이상 미접근 데이터(약 80 %)가 Standard 요금($0.023/GB)으로 계속 과금되고 있다.
+      Glacier Instant Retrieval($0.004/GB)로 전환하면 해당 데이터의 스토리지 비용을 약 83 % 절감할 수 있다.
+    detection_method: "S3 Storage Lens 또는 CloudWatch GetRequests/PutRequests 지표와 버킷 용량 비교"
+
+    resources:
+      problem:
+        - type: "aws_s3_bucket"
+          config:
+            bucket_name: "data-lake-raw"
+            total_size_tb: 5
+            lifecycle_policy: null
+            versioning: false
+            pct_not_accessed_90d: 80
+          count: 1
+        - type: "aws_s3_bucket"
+          config:
+            bucket_name: "data-lake-archive"
+            total_size_tb: 5
+            lifecycle_policy: null
+            versioning: false
+            pct_not_accessed_90d: 80
+          count: 1
+      decoy:
+        - type: "aws_s3_bucket"
+          config:
+            bucket_name: "data-lake-curated"
+            total_size_tb: 3
+            lifecycle_policy:
+              transition_to: "GLACIER"
+              transition_days: 90
+            versioning: false
+          count: 1
+
+    metrics_profile:
+      problem_resources:
+        get_requests:
+          type: "normal"
+          mean: 100
+          std: 30
+          unit: "Count/day"
+          note: "10 TB 대비 매우 낮은 접근 빈도"
+        put_requests:
+          type: "normal"
+          mean: 50
+          std: 20
+          unit: "Count/day"
+      decoy_resources:
+        get_requests:
+          type: "normal"
+          mean: 500
+          std: 100
+          unit: "Count/day"
+        put_requests:
+          type: "normal"
+          mean: 200
+          std: 50
+          unit: "Count/day"
+
+    cost_profile:
+      monthly_waste_usd: 152
+      services_affected: ["S3"]
+      pricing_note: "8 TB eligible × ($0.023 - $0.004)/GB = 8,192 GB × $0.019 ≈ $155.6 → ~$152/mo"
+
+    answer:
+      severity: "medium"
+      problem_summary: "Lifecycle 정책 미설정으로 90일 이상 미접근 데이터 8 TB가 Standard 스토리지 클래스에 영구 보관"
+      recommendation: "90일 미접근 객체를 Glacier Instant Retrieval로 전환하는 Lifecycle 정책 추가"
+      savings_estimate_monthly_usd: 152
+      evidence_pointers:
+        - "S3 버킷 data-lake-raw, data-lake-archive에 Lifecycle 정책 없음"
+        - "GetRequests 평균 100/day — 10 TB 대비 접근율 극히 낮음"
+        - "80% 데이터가 90일 이상 미접근"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["s3", "lifecycle", "storage-class", "cold-data", "glacier"]
+
+  # ──────────────────────────────────────────────
+  # L1-012: S3 버전 관리 + 이전 버전 정리 없음
+  # ──────────────────────────────────────────────
+  - id: "L1-012"
+    title: "S3 버전 관리 활성화 후 이전 버전 정리 없음 — 6배 용량 누적"
+    category: "unused"
+    level: "L1"
+    aws_services: ["S3"]
+    description: |
+      S3 버킷에 Versioning이 활성화되어 있으나 NoncurrentVersionExpiration 정책이 없어,
+      현재 객체 2 TB 대비 총 12 TB(이전 버전 10 TB)가 누적되고 있다.
+      이전 버전 자동 만료 정책을 추가하면 불필요한 스토리지를 대폭 제거할 수 있다.
+    detection_method: "S3 Storage Lens의 CurrentVersionBytes vs NonCurrentVersionBytes 비교"
+
+    resources:
+      problem:
+        - type: "aws_s3_bucket"
+          config:
+            bucket_name: "app-assets-prod"
+            versioning: true
+            current_size_tb: 2
+            total_with_versions_tb: 12
+            noncurrent_version_expiration_days: null
+          count: 1
+      decoy:
+        - type: "aws_s3_bucket"
+          config:
+            bucket_name: "app-assets-staging"
+            versioning: true
+            current_size_tb: 1
+            total_with_versions_tb: 1.2
+            noncurrent_version_expiration_days: 30
+          count: 1
+
+    metrics_profile:
+      problem_resources:
+        storage_bytes:
+          type: "step"
+          direction: "increasing"
+          step_gb_per_week: 200
+          unit: "Bytes"
+          note: "이전 버전 누적으로 총 용량 지속 증가"
+        noncurrent_version_count:
+          type: "step"
+          direction: "increasing"
+          step_per_week: 50000
+          unit: "Count"
+      decoy_resources:
+        storage_bytes:
+          type: "constant"
+          value_tb: 1.2
+          unit: "Bytes"
+          note: "30일 NoncurrentVersionExpiration 정책으로 용량 안정"
+        noncurrent_version_count:
+          type: "constant"
+          value: 15000
+          unit: "Count"
+
+    cost_profile:
+      monthly_waste_usd: 230
+      services_affected: ["S3"]
+      pricing_note: "10 TB noncurrent × $0.023/GB = 10,240 GB × $0.023 ≈ $235 → ~$230/mo"
+
+    answer:
+      severity: "high"
+      problem_summary: "Versioning 활성화 버킷에 NoncurrentVersionExpiration 미설정으로 이전 버전 10 TB가 영구 보관"
+      recommendation: "NoncurrentVersionExpiration을 30~90일로 설정하여 불필요한 이전 버전 자동 삭제"
+      savings_estimate_monthly_usd: 230
+      evidence_pointers:
+        - "app-assets-prod 버킷: current 2 TB vs total 12 TB (이전 버전 10 TB)"
+        - "NoncurrentVersionExpiration 정책 미설정"
+        - "storage_bytes 지표가 주당 ~200 GB씩 지속 증가"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["s3", "versioning", "noncurrent-version", "lifecycle", "storage-bloat"]
+
+  # ──────────────────────────────────────────────
+  # L1-013: RDS 백업 보존 기간 35일 과다 설정
+  # ──────────────────────────────────────────────
+  - id: "L1-013"
+    title: "RDS 백업 보존 기간 35일 — 자동 백업 스토리지 5배 과금"
+    category: "overprovisioning"
+    level: "L1"
+    aws_services: ["RDS"]
+    description: |
+      RDS 인스턴스 2대(db.r5.xlarge, 각 500 GB)의 백업 보존 기간이 기본값 7일이 아닌 35일로 설정되어,
+      추가 28일분의 백업 스토리지가 과금되고 있다.
+      백업 보존 기간을 비즈니스 요건에 맞게 줄이면 백업 스토리지 비용을 절감할 수 있다.
+    detection_method: "RDS 콘솔 또는 describe-db-instances의 BackupRetentionPeriod 확인"
+
+    resources:
+      problem:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.xlarge"
+            engine: "mysql"
+            db_size_gb: 500
+            backup_retention_period: 35
+            multi_az: false
+          count: 2
+      decoy:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.large"
+            engine: "mysql"
+            db_size_gb: 200
+            backup_retention_period: 7
+            multi_az: false
+          count: 1
+
+    metrics_profile:
+      problem_resources:
+        backup_storage_bytes:
+          type: "step"
+          direction: "increasing"
+          step_gb_per_day: 15
+          unit: "Bytes"
+          note: "35일분 백업이 누적되며 증가 추세"
+        cpu_utilization:
+          type: "normal"
+          mean: 45
+          std: 10
+          unit: "Percent"
+      decoy_resources:
+        backup_storage_bytes:
+          type: "constant"
+          value_gb: 200
+          unit: "Bytes"
+          note: "7일 보존으로 백업 용량 일정"
+        cpu_utilization:
+          type: "normal"
+          mean: 60
+          std: 15
+          unit: "Percent"
+
+    cost_profile:
+      monthly_waste_usd: 266
+      services_affected: ["RDS"]
+      pricing_note: "2 × 500 GB × (28 extra days / 30) × $0.095/GB-month ≈ 2 × 500 × 0.933 × $0.095 ≈ $266/mo"
+
+    answer:
+      severity: "medium"
+      problem_summary: "RDS 백업 보존 기간이 35일로 설정되어 기본 7일 대비 28일분의 추가 백업 스토리지 비용 발생"
+      recommendation: "백업 보존 기간을 7~14일로 조정하고, 장기 보관이 필요한 경우 수동 스냅샷 + S3 아카이빙 활용"
+      savings_estimate_monthly_usd: 266
+      evidence_pointers:
+        - "2대의 db.r5.xlarge 인스턴스 BackupRetentionPeriod=35"
+        - "backup_storage_bytes 지표가 지속 증가 추세"
+        - "Decoy 인스턴스(BackupRetentionPeriod=7)는 백업 용량 일정"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["rds", "backup", "retention", "overprovisioning", "storage-cost"]

@@ -1,0 +1,361 @@
+scenarios:
+  # ──────────────────────────────────────────────
+  # L2-021: SQS Long Polling 미설정
+  # ──────────────────────────────────────────────
+  - id: "L2-021"
+    title: "SQS Long Polling 미설정으로 인한 빈 폴링 과금"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["SQS"]
+    description: |
+      5개 SQS 큐가 Short Polling(ReceiveWaitTimeSeconds=0)으로 설정되어 있어,
+      메시지가 없는 상태에서도 초당 수십 회씩 빈 폴링이 발생한다.
+      SQS API 호출은 건당 과금되므로 빈 수신(EmptyReceive)이 월 수천만 건에 달해
+      불필요한 비용이 발생하고 있다. Long Polling(최대 20초 대기)으로 전환하면
+      빈 수신 횟수를 대폭 줄일 수 있다.
+    detection_method: "NumberOfEmptyReceives 메트릭이 비정상적으로 높은 큐 식별 후 ReceiveWaitTimeSeconds 설정 확인"
+
+    resources:
+      problem:
+        - type: "aws_sqs_queue"
+          config:
+            receive_wait_time_seconds: 0
+            visibility_timeout_seconds: 30
+            messages_per_day: 1000
+            empty_receives_per_day: 2000000
+            polling_interval_ms: 100
+          count: 5
+      decoy:
+        - type: "aws_sqs_queue"
+          config:
+            receive_wait_time_seconds: 20
+            visibility_timeout_seconds: 30
+            messages_per_day: 5000
+            empty_receives_per_day: 3000
+            polling_interval_ms: 20000
+          count: 2
+
+    metrics_profile:
+      problem_resources:
+        number_of_empty_receives:
+          type: "normal"
+          mean: 80000
+          std: 10000
+          unit: "Count"
+          period: 1
+        number_of_messages_received:
+          type: "normal"
+          mean: 40
+          std: 10
+          unit: "Count"
+          period: 1
+      decoy_resources:
+        number_of_empty_receives:
+          type: "normal"
+          mean: 100
+          std: 30
+          unit: "Count"
+          period: 1
+        number_of_messages_received:
+          type: "normal"
+          mean: 200
+          std: 50
+          unit: "Count"
+          period: 1
+
+    cost_profile:
+      monthly_waste_usd: 120
+      services_affected: ["SQS"]
+      pricing_note: "SQS API 호출 $0.40/백만 건. 5큐 × 약 60M 빈 수신/월 = 300M 호출 → $120/월 낭비"
+
+    answer:
+      severity: "medium"
+      problem_summary: "5개 SQS 큐가 Short Polling으로 설정되어 큐당 일 200만 건의 빈 수신이 발생, 월 $120의 불필요한 API 호출 비용 발생"
+      recommendation: "ReceiveWaitTimeSeconds를 20초로 설정하여 Long Polling 활성화. 빈 수신 횟수가 99% 이상 감소하며 메시지 수신 지연은 무시 가능 수준"
+      savings_estimate_monthly_usd: 120
+      evidence_pointers:
+        - "NumberOfEmptyReceives 메트릭: 문제 큐 평균 80,000/h vs 정상 큐 100/h"
+        - "ReceiveWaitTimeSeconds=0 설정 확인"
+        - "NumberOfMessagesReceived 대비 EmptyReceives 비율 2000:1"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["sqs", "polling", "api-cost", "data-pipeline", "configuration"]
+
+  # ──────────────────────────────────────────────
+  # L2-022: Kinesis Enhanced Fan-Out 불필요 활성화
+  # ──────────────────────────────────────────────
+  - id: "L2-022"
+    title: "Kinesis Enhanced Fan-Out 불필요 활성화로 인한 과금"
+    category: "rate"
+    level: "L2"
+    aws_services: ["Kinesis"]
+    description: |
+      배치 처리(5분 간격) 워크로드에 Enhanced Fan-Out이 활성화되어 있다.
+      Enhanced Fan-Out은 저지연 실시간 스트리밍이 필요한 경우를 위한 기능으로,
+      샤드당 전용 읽기 처리량(2MB/s)을 제공하지만 추가 비간이 발생한다.
+      IteratorAge가 200초 이상으로 높아 배치 처리 패턴임이 명확하며,
+      표준 컨슈머로 전환해도 처리에 문제가 없다.
+    detection_method: "Enhanced Fan-Out 컨슈머 등록 확인 + GetRecords.IteratorAgeMilliseconds가 높은 스트림 식별"
+
+    resources:
+      problem:
+        - type: "aws_kinesis_stream"
+          config:
+            shard_count: 20
+            retention_period_hours: 24
+            enhanced_fan_out: true
+            processing_interval_minutes: 5
+          count: 1
+        - type: "aws_kinesis_stream_consumer"
+          config:
+            consumer_type: "enhanced_fan_out"
+            data_read_gb_per_day: 250
+          count: 2
+      decoy:
+        - type: "aws_kinesis_stream"
+          config:
+            shard_count: 5
+            retention_period_hours: 24
+            enhanced_fan_out: false
+            processing_interval_minutes: 1
+          count: 1
+
+    metrics_profile:
+      problem_resources:
+        iterator_age_ms:
+          type: "normal"
+          mean: 200000
+          std: 50000
+          unit: "Milliseconds"
+          period: 1
+        incoming_bytes:
+          type: "normal"
+          mean: 5800000
+          std: 1000000
+          unit: "Bytes"
+          period: 1
+        read_provisioned_throughput_exceeded:
+          type: "normal"
+          mean: 0
+          std: 0
+          unit: "Count"
+          period: 1
+      decoy_resources:
+        iterator_age_ms:
+          type: "normal"
+          mean: 1000
+          std: 200
+          unit: "Milliseconds"
+          period: 1
+        incoming_bytes:
+          type: "normal"
+          mean: 2000000
+          std: 500000
+          unit: "Bytes"
+          period: 1
+
+    cost_profile:
+      monthly_waste_usd: 437
+      services_affected: ["Kinesis"]
+      pricing_note: "Enhanced Fan-Out 추가비용: 샤드시간 $0.015 × 20샤드 × 730h = $219 + 데이터 검색 15TB × $0.013/GB = $195 + 컨슈머 시간 = $437/월"
+
+    answer:
+      severity: "medium"
+      problem_summary: "배치 처리(5분 간격) 워크로드에 Enhanced Fan-Out이 불필요하게 활성화되어 월 $437의 추가 비용 발생"
+      recommendation: "Enhanced Fan-Out 컨슈머를 표준(Shared) 컨슈머로 전환. IteratorAge 200초로 저지연 불필요. 표준 컨슈머는 추가 데이터 검색 비용 없음"
+      savings_estimate_monthly_usd: 437
+      evidence_pointers:
+        - "GetRecords.IteratorAgeMilliseconds 평균 200초 → 배치 처리 패턴"
+        - "Enhanced Fan-Out 컨슈머 2개 등록 확인"
+        - "ReadProvisionedThroughputExceeded=0 → 표준 컨슈머 처리량 충분"
+        - "처리 주기 5분으로 실시간 요구사항 없음"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["kinesis", "enhanced-fan-out", "streaming", "data-pipeline", "batch-processing"]
+
+  # ──────────────────────────────────────────────
+  # L2-023: Athena 결과 S3 Standard 무제한 저장
+  # ──────────────────────────────────────────────
+  - id: "L2-023"
+    title: "Athena 쿼리 결과 S3 버킷 Lifecycle 미설정으로 비용 누적"
+    category: "unused"
+    level: "L2"
+    aws_services: ["Athena", "S3"]
+    description: |
+      Athena 쿼리 결과가 저장되는 S3 버킷에 Lifecycle 정책이 설정되어 있지 않아
+      쿼리 결과가 무기한 누적되고 있다. 현재 5TB가 쌓여 있으며 평균 보관 기간이
+      180일을 초과한다. 대부분의 쿼리 결과는 7일 이내에만 참조되므로
+      7일 후 자동 삭제하는 Lifecycle 정책을 적용하면 스토리지 비용을 대폭 절감할 수 있다.
+    detection_method: "Athena 결과 버킷의 S3 스토리지 용량 증가 추세 및 Lifecycle 정책 미설정 확인"
+
+    resources:
+      problem:
+        - type: "aws_s3_bucket"
+          config:
+            purpose: "athena-query-results"
+            storage_class: "STANDARD"
+            total_size_gb: 5120
+            object_count: 2500000
+            lifecycle_policy: null
+            avg_object_age_days: 180
+            daily_new_data_gb: 30
+          count: 1
+      decoy:
+        - type: "aws_s3_bucket"
+          config:
+            purpose: "athena-query-results"
+            storage_class: "STANDARD"
+            total_size_gb: 50
+            object_count: 15000
+            lifecycle_policy:
+              expiration_days: 7
+            avg_object_age_days: 3
+            daily_new_data_gb: 30
+          count: 1
+
+    metrics_profile:
+      problem_resources:
+        bucket_size_bytes:
+          type: "step"
+          direction: "increasing"
+          step_size_gb: 30
+          unit: "Bytes"
+          period: 24
+        number_of_objects:
+          type: "step"
+          direction: "increasing"
+          step_size: 15000
+          unit: "Count"
+          period: 24
+      decoy_resources:
+        bucket_size_bytes:
+          type: "constant"
+          value_gb: 50
+          unit: "Bytes"
+          period: 24
+        number_of_objects:
+          type: "constant"
+          value: 15000
+          unit: "Count"
+          period: 24
+
+    cost_profile:
+      monthly_waste_usd: 115
+      services_affected: ["S3"]
+      pricing_note: "S3 Standard $0.023/GB/월. 5TB 중 7일치(~210GB)만 필요 → 불필요 저장 ~4.9TB × $0.023 ≈ $115/월 낭비"
+
+    answer:
+      severity: "medium"
+      problem_summary: "Athena 쿼리 결과 S3 버킷에 Lifecycle 정책이 없어 5TB가 무한 누적, 월 $115의 불필요 스토리지 비용 발생"
+      recommendation: "S3 Lifecycle 정책을 추가하여 7일 후 객체 자동 삭제. 즉시 5TB → ~210GB로 감소. 필요시 Athena 쿼리 재실행으로 결과 재생성 가능"
+      savings_estimate_monthly_usd: 115
+      evidence_pointers:
+        - "BucketSizeBytes 메트릭: 지속적 우상향 추세 (일 30GB 증가)"
+        - "Lifecycle 정책 미설정 확인"
+        - "평균 객체 보관 기간 180일+ vs 정상 버킷 3일"
+        - "정상 버킷 대비 용량 100배 (5TB vs 50GB)"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["athena", "s3", "lifecycle", "data-pipeline", "storage-waste"]
+
+  # ──────────────────────────────────────────────
+  # L2-024: CloudWatch 커스텀 메트릭 1초 해상도
+  # ──────────────────────────────────────────────
+  - id: "L2-024"
+    title: "CloudWatch 커스텀 메트릭 불필요한 High Resolution(1초) 적용"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["CloudWatch"]
+    description: |
+      200개의 커스텀 메트릭이 High Resolution(1초 해상도)으로 수집되고 있다.
+      High Resolution 메트릭은 표준(60초) 대비 3배의 요금이 부과된다.
+      실제로 1초 해상도가 필요한 메트릭은 전체의 약 5%(10개) 수준이며,
+      나머지 190개는 60초 해상도로 충분하다. 불필요한 메트릭의 해상도를
+      표준으로 전환하면 비용을 절감할 수 있다.
+    detection_method: "CloudWatch PutMetricData API 호출에서 StorageResolution=1 설정된 메트릭 식별 및 실제 알람/대시보드 참조 주기 비교"
+
+    resources:
+      problem:
+        - type: "aws_cloudwatch_metric_alarm"
+          config:
+            resolution_seconds: 1
+            namespace: "Custom/Application"
+            metric_type: "high_resolution"
+            evaluation_period_minutes: 5
+            actual_required_resolution_seconds: 60
+          count: 200
+      decoy:
+        - type: "aws_cloudwatch_metric_alarm"
+          config:
+            resolution_seconds: 60
+            namespace: "Custom/Application"
+            metric_type: "standard"
+            evaluation_period_minutes: 5
+          count: 50
+
+    metrics_profile:
+      problem_resources:
+        metric_count:
+          type: "constant"
+          value: 200
+          unit: "Count"
+          period: 24
+        put_metric_data_requests:
+          type: "normal"
+          mean: 17280000
+          std: 500000
+          unit: "Count"
+          period: 24
+          note: "200 metrics × 86400 seconds/day"
+      decoy_resources:
+        metric_count:
+          type: "constant"
+          value: 50
+          unit: "Count"
+          period: 24
+        put_metric_data_requests:
+          type: "normal"
+          mean: 72000
+          std: 5000
+          unit: "Count"
+          period: 24
+          note: "50 metrics × 1440 minutes/day"
+
+    cost_profile:
+      monthly_waste_usd: 120
+      services_affected: ["CloudWatch"]
+      pricing_note: "High Resolution $0.90/메트릭/월, Standard $0.30/메트릭/월. 불필요 190개 × ($0.90 - $0.30) = $114 + PutMetricData API 추가 호출 비용 ≈ $120/월"
+
+    answer:
+      severity: "medium"
+      problem_summary: "200개 커스텀 메트릭에 불필요하게 High Resolution(1초)이 적용되어 표준 대비 월 $120 추가 비용 발생"
+      recommendation: "실제 1초 해상도가 필요한 메트릭(약 10개)을 식별하고, 나머지 190개를 표준(60초) 해상도로 전환. PutMetricData 호출 시 StorageResolution 파라미터 제거"
+      savings_estimate_monthly_usd: 120
+      evidence_pointers:
+        - "200개 메트릭 모두 StorageResolution=1 설정"
+        - "알람 평가 주기 5분 → 1초 해상도 불필요"
+        - "표준 해상도 50개 메트릭과 동일한 평가 주기 사용"
+        - "PutMetricData 호출량: 문제 메트릭 1,728만/일 vs 정상 7.2만/일"
+
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+
+    tags: ["cloudwatch", "metrics", "high-resolution", "data-pipeline", "monitoring-cost"]

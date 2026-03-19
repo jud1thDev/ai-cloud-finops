@@ -1,0 +1,67 @@
+industries:
+  - name: "이커머스"
+    name_en: "ecommerce"
+    monthly_spend_range: [5000, 50000]
+    typical_services: ["EC2", "RDS", "S3", "CloudFront", "ElastiCache", "Lambda"]
+    company_names: ["ShopWave", "CartFusion", "BuyNest", "QuickMart", "FlexShop"]
+  - name: "핀테크"
+    name_en: "fintech"
+    monthly_spend_range: [10000, 80000]
+    typical_services: ["EC2", "RDS", "DynamoDB", "Lambda", "Kinesis", "EKS"]
+    company_names: ["PayBridge", "FinCore", "MoneyFlow", "LedgerAI", "CashPulse"]
+  - name: "SaaS"
+    name_en: "saas"
+    monthly_spend_range: [8000, 60000]
+    typical_services: ["ECS", "RDS", "S3", "CloudFront", "SQS", "Lambda"]
+    company_names: ["CloudSync", "DataPilot", "FlowOps", "AppForge", "TaskHive"]
+  - name: "게임"
+    name_en: "gaming"
+    monthly_spend_range: [15000, 100000]
+    typical_services: ["EC2", "ElastiCache", "DynamoDB", "CloudFront", "EKS", "Kinesis"]
+    company_names: ["PixelStorm", "GameNova", "PlayForge", "ArenaX", "QuestLab"]
+  - name: "미디어/스트리밍"
+    name_en: "media"
+    monthly_spend_range: [20000, 120000]
+    typical_services: ["EC2", "S3", "CloudFront", "Lambda", "ECS", "Kinesis"]
+    company_names: ["StreamVault", "MediaPlex", "ViewCast", "ContentHub", "BroadNet"]
+  - name: "헬스케어"
+    name_en: "healthcare"
+    monthly_spend_range: [8000, 40000]
+    typical_services: ["EC2", "RDS", "S3", "Lambda", "ECS", "Athena"]
+    company_names: ["MedCloud", "HealthSync", "CareFlow", "VitaData", "PulseAI"]
+  - name: "물류/배송"
+    name_en: "logistics"
+    monthly_spend_range: [5000, 35000]
+    typical_services: ["EC2", "RDS", "Lambda", "SQS", "DynamoDB", "S3"]
+    company_names: ["RouteX", "ShipFlow", "CargoNet", "DeliverAI", "TrackPulse"]
+  - name: "교육"
+    name_en: "education"
+    monthly_spend_range: [3000, 20000]
+    typical_services: ["EC2", "RDS", "S3", "CloudFront", "Lambda", "SQS"]
+    company_names: ["EduStack", "LearnHub", "ClassForge", "SkillWave", "StudyNet"]
+
+growth_stages:
+  - name: "초기 스타트업"
+    name_en: "early_startup"
+    employee_range: [5, 30]
+    cloud_maturity: "low"
+    finops_team: false
+    description: "빠른 성장에 집중하며 비용 최적화보다 속도를 우선시하는 단계"
+  - name: "성장기"
+    name_en: "growth"
+    employee_range: [30, 200]
+    cloud_maturity: "medium"
+    finops_team: false
+    description: "매출이 빠르게 증가하면서 클라우드 비용도 급등하기 시작하는 단계"
+  - name: "스케일업"
+    name_en: "scaleup"
+    employee_range: [200, 1000]
+    cloud_maturity: "medium"
+    finops_team: true
+    description: "전담 DevOps/FinOps 팀이 생기기 시작하지만 레거시 설정이 남아있는 단계"
+  - name: "엔터프라이즈"
+    name_en: "enterprise"
+    employee_range: [1000, 10000]
+    cloud_maturity: "high"
+    finops_team: true
+    description: "멀티 계정, 복잡한 네트워크, RI/SP 관리가 핵심 과제인 단계"

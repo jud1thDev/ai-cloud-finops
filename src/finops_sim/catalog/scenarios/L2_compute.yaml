@@ -1,0 +1,521 @@
+scenarios:
+  # ──────────────────────────────────────────────
+  # L2-014: Lambda 메모리 과잉 할당
+  # ──────────────────────────────────────────────
+  - id: "L2-014"
+    title: "Lambda 메모리 과잉 할당"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["Lambda"]
+    description: |
+      Lambda 함수에 3008MB 메모리가 고정 할당되어 있으나, 실제 사용량은 평균 180MB에 불과합니다.
+      Duration x Memory 기준으로 약 6배의 비용 낭비가 발생하고 있습니다.
+      AWS Lambda Power Tuning 도구를 활용하여 최적 메모리를 찾고 512MB로 줄이면 약 5배 절감이 가능합니다.
+    detection_method: "CloudWatch Lambda Memory Used vs Allocated 비교 및 Duration x Memory 비용 분석"
+    resources:
+      problem:
+        - type: "aws_lambda_function"
+          config:
+            memory_size: 3008
+            avg_duration_ms: 200
+            invocations_per_day: 100000
+            runtime: "python3.11"
+          count: 3
+      decoy:
+        - type: "aws_lambda_function"
+          config:
+            memory_size: 512
+            avg_duration_ms: 150
+            invocations_per_day: 50000
+            runtime: "python3.11"
+          count: 2
+    metrics_profile:
+      problem_resources:
+        memory_used_mb:
+          type: "normal"
+          mean: 180
+          std: 30
+        duration_ms:
+          type: "normal"
+          mean: 200
+          std: 50
+      decoy_resources:
+        memory_used_mb:
+          type: "normal"
+          mean: 400
+          std: 50
+        duration_ms:
+          type: "normal"
+          mean: 150
+          std: 30
+    cost_profile:
+      monthly_waste_usd: 750
+      services_affected: ["Lambda"]
+      pricing_note: "Lambda 비용 = 요청 수 + (Duration x 할당 메모리 GB-초). 3008MB → 512MB로 줄이면 함수당 약 $250/mo 절감 (3 함수 합계 $750/mo)."
+    answer:
+      severity: "high"
+      problem_summary: "3개 Lambda 함수에 3008MB 메모리가 할당되어 있으나 실사용량은 평균 180MB로, Duration x Memory 기준 약 6배 과잉 과금 중"
+      recommendation: "AWS Lambda Power Tuning 도구로 최적 메모리 산출 후 512MB로 재설정. 성능 회귀 테스트 병행."
+      savings_estimate_monthly_usd: 750
+      evidence_pointers:
+        - "CloudWatch > Lambda > Memory Used 평균 180MB vs 할당 3008MB"
+        - "함수당 일 10만 호출 × 200ms × (3008-512)MB 차이 = 과잉 GB-초"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["lambda", "memory", "overprovisioning", "power-tuning", "serverless"]
+
+  # ──────────────────────────────────────────────
+  # L2-015: Lambda 타임아웃 과잉 설정
+  # ──────────────────────────────────────────────
+  - id: "L2-015"
+    title: "Lambda 타임아웃 과잉 설정"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["Lambda"]
+    description: |
+      Lambda 함수의 타임아웃이 최대값인 900초로 설정되어 있으나, 정상 실행 시 평균 2초면 완료됩니다.
+      문제는 에러 발생 시(약 2%) 함수가 900초까지 대기하며, 이 시간 동안 Duration 기반 과금이 발생한다는 점입니다.
+      타임아웃을 적절히 줄이면 에러 시 조기 종료되어 불필요한 비용을 방지할 수 있습니다.
+    detection_method: "CloudWatch Lambda Duration 분포에서 900초 스파이크 탐지 및 Error Rate 상관 분석"
+    resources:
+      problem:
+        - type: "aws_lambda_function"
+          config:
+            timeout: 900
+            memory_size: 1024
+            avg_duration_ms: 2000
+            error_rate_pct: 2
+            invocations_per_day: 50000
+            runtime: "nodejs18.x"
+          count: 2
+      decoy:
+        - type: "aws_lambda_function"
+          config:
+            timeout: 30
+            memory_size: 1024
+            avg_duration_ms: 1500
+            error_rate_pct: 0.1
+            invocations_per_day: 30000
+            runtime: "nodejs18.x"
+          count: 1
+    metrics_profile:
+      problem_resources:
+        duration_ms:
+          type: "normal_with_spike"
+          mean: 2000
+          std: 500
+          spike_value: 900000
+          spike_chance: 0.02
+        error_rate_pct:
+          type: "constant"
+          value: 2
+      decoy_resources:
+        duration_ms:
+          type: "normal"
+          mean: 1500
+          std: 300
+        error_rate_pct:
+          type: "constant"
+          value: 0.1
+    cost_profile:
+      monthly_waste_usd: 360
+      services_affected: ["Lambda"]
+      pricing_note: "에러 시 900초 × 1024MB = 900 GB-초/호출. 하루 50000 × 2% = 1000 에러 호출 × 900 GB-초. 타임아웃을 10초로 줄이면 에러 비용 99% 절감. 함수당 약 $180/mo (2 함수 합계 $360/mo)."
+    answer:
+      severity: "medium"
+      problem_summary: "2개 Lambda 함수의 타임아웃이 900초로 설정되어 에러 발생 시(2%) 900초 전체가 과금되는 구조적 낭비 발생"
+      recommendation: "타임아웃을 정상 실행 시간의 3~5배(10초)로 설정하고, 에러 핸들링(circuit breaker, dead letter queue)을 강화할 것."
+      savings_estimate_monthly_usd: 360
+      evidence_pointers:
+        - "CloudWatch > Lambda > Duration 분포에서 900000ms 스파이크 존재"
+        - "에러율 2% × 일 50000 호출 = 하루 1000건이 900초 과금"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["lambda", "timeout", "overprovisioning", "error-handling", "serverless"]
+
+  # ──────────────────────────────────────────────
+  # L2-016: ECS Fargate vCPU/메모리 고정 과잉
+  # ──────────────────────────────────────────────
+  - id: "L2-016"
+    title: "ECS Fargate vCPU/메모리 고정 과잉"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["ECS", "Fargate"]
+    description: |
+      ECS Fargate 태스크가 4 vCPU / 8GB 메모리로 구성되어 있으나,
+      실제 CPU 사용률은 P99 기준 20% 미만이고 메모리도 20% 수준입니다.
+      Fargate는 vCPU-시간 × 메모리-시간 곱셈으로 요금이 산정되므로,
+      1 vCPU / 2GB로 다운사이징하면 약 75% 비용을 절감할 수 있습니다.
+    detection_method: "CloudWatch ECS CPU/Memory Utilization P99 < 25% 장기 지속 여부 확인"
+    resources:
+      problem:
+        - type: "aws_ecs_service"
+          config:
+            launch_type: "FARGATE"
+            cpu: 4096
+            memory: 8192
+            desired_count: 5
+            platform_version: "1.4.0"
+          count: 10
+      decoy:
+        - type: "aws_ecs_service"
+          config:
+            launch_type: "FARGATE"
+            cpu: 1024
+            memory: 2048
+            desired_count: 3
+            platform_version: "1.4.0"
+          count: 2
+    metrics_profile:
+      problem_resources:
+        cpu_percent:
+          type: "normal"
+          mean: 12
+          std: 5
+        memory_percent:
+          type: "normal"
+          mean: 20
+          std: 8
+      decoy_resources:
+        cpu_percent:
+          type: "normal"
+          mean: 65
+          std: 15
+        memory_percent:
+          type: "normal"
+          mean: 70
+          std: 10
+    cost_profile:
+      monthly_waste_usd: 1050
+      services_affected: ["ECS", "Fargate"]
+      pricing_note: "Fargate 비용 = vCPU-시간($0.04048) + GB-시간($0.004445). 4vCPU/8GB → 1vCPU/2GB = 75% 절감. 현재 ~$1400/mo 중 $1050/mo 절감 가능."
+    answer:
+      severity: "high"
+      problem_summary: "10개 ECS Fargate 서비스가 4vCPU/8GB로 구성되어 있으나 CPU 12%, 메모리 20% 수준으로 75% 이상 과잉 프로비저닝 상태"
+      recommendation: "1vCPU/2GB로 다운사이징하되, 점진적 적용(카나리아 배포) 후 P99 레이턴시 모니터링 필수. 필요 시 Fargate Spot 병행 검토."
+      savings_estimate_monthly_usd: 1050
+      evidence_pointers:
+        - "CloudWatch > ECS > CPUUtilization P99 < 20%"
+        - "CloudWatch > ECS > MemoryUtilization 평균 20%"
+        - "4vCPU/8GB 태스크 × desired_count 5 × 10 서비스"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ecs", "fargate", "overprovisioning", "right-sizing", "container"]
+
+  # ──────────────────────────────────────────────
+  # L2-017: Auto Scaling warm-up 미설정
+  # ──────────────────────────────────────────────
+  - id: "L2-017"
+    title: "Auto Scaling warm-up 미설정으로 인한 과잉 스케일아웃"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["EC2", "Auto Scaling"]
+    description: |
+      Auto Scaling Group에 instance warm-up이 설정되지 않아,
+      새 인스턴스가 아직 준비되지 않은 상태에서 CloudWatch 지표가 높게 측정되고,
+      이를 과부하로 판단하여 추가 스케일아웃이 반복됩니다.
+      결과적으로 필요 이상의 인스턴스가 빈번하게 생성/종료되며 불필요한 비용이 발생합니다.
+    detection_method: "ASG 이벤트 로그에서 급격한 스케일아웃/인 사이클 탐지 및 warm-up 설정 유무 확인"
+    resources:
+      problem:
+        - type: "aws_autoscaling_group"
+          config:
+            min_size: 2
+            max_size: 20
+            desired_capacity_range: [2, 18]
+            instance_type: "m5.xlarge"
+            default_instance_warmup: null
+            scaling_policy: "target_tracking"
+            target_cpu: 60
+          count: 1
+      decoy:
+        - type: "aws_autoscaling_group"
+          config:
+            min_size: 2
+            max_size: 10
+            desired_capacity: 4
+            instance_type: "m5.xlarge"
+            default_instance_warmup: 300
+            scaling_policy: "target_tracking"
+            target_cpu: 60
+          count: 1
+    metrics_profile:
+      problem_resources:
+        instance_count:
+          type: "spike_cycle"
+          base: 2
+          spike_peak: 18
+          cycle_period_hours: 4
+          ramp_up_minutes: 10
+          ramp_down_minutes: 30
+        cpu_percent:
+          type: "normal"
+          mean: 55
+          std: 20
+      decoy_resources:
+        instance_count:
+          type: "normal"
+          mean: 4
+          std: 1
+        cpu_percent:
+          type: "normal"
+          mean: 58
+          std: 12
+    cost_profile:
+      monthly_waste_usd: 420
+      services_affected: ["EC2", "Auto Scaling"]
+      pricing_note: "m5.xlarge = $0.192/hr. 평균 3개 불필요 인스턴스 × $0.192 × 730시간 = ~$420/mo 낭비."
+    answer:
+      severity: "medium"
+      problem_summary: "ASG에 instance warm-up이 미설정되어 스케일아웃/인 사이클이 반복, 평균 3개 불필요 인스턴스가 지속 운영됨"
+      recommendation: "default_instance_warmup을 300초로 설정하고, step scaling 대신 target tracking에서 warm-up 기간 동안 지표 제외 활성화. 스케일인 쿨다운도 검토."
+      savings_estimate_monthly_usd: 420
+      evidence_pointers:
+        - "ASG 이벤트 로그에서 4시간 주기로 2 → 18 → 2 인스턴스 사이클 반복"
+        - "default_instance_warmup = null (미설정)"
+        - "Decoy ASG는 warm-up 300초 설정으로 안정적 운영"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ec2", "auto-scaling", "warm-up", "overprovisioning", "scaling-cycle"]
+
+  # ──────────────────────────────────────────────
+  # L2-018: Kinesis Shard 정적 과잉 프로비전
+  # ──────────────────────────────────────────────
+  - id: "L2-018"
+    title: "Kinesis Shard 정적 과잉 프로비전"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["Kinesis"]
+    description: |
+      Kinesis Data Stream이 100개 shard로 프로비저닝되어 있으나,
+      실제 수신 레코드 수는 shard 10개 분량에 불과합니다 (write throughput 10%).
+      On-Demand 모드 전환 또는 shard auto scaling을 적용하지 않아
+      90개 shard가 유휴 상태로 비용만 발생하고 있습니다.
+    detection_method: "CloudWatch Kinesis IncomingRecords, WriteProvisionedThroughputExceeded 지표로 shard 사용률 분석"
+    resources:
+      problem:
+        - type: "aws_kinesis_stream"
+          config:
+            shard_count: 100
+            stream_mode: "PROVISIONED"
+            retention_hours: 24
+          count: 1
+      decoy:
+        - type: "aws_kinesis_stream"
+          config:
+            shard_count: 4
+            stream_mode: "ON_DEMAND"
+            retention_hours: 24
+          count: 1
+    metrics_profile:
+      problem_resources:
+        incoming_records_per_sec:
+          type: "normal"
+          mean: 5000
+          std: 1000
+        write_throughput_pct:
+          type: "normal"
+          mean: 10
+          std: 3
+      decoy_resources:
+        incoming_records_per_sec:
+          type: "normal"
+          mean: 3000
+          std: 500
+        write_throughput_pct:
+          type: "normal"
+          mean: 75
+          std: 15
+    cost_profile:
+      monthly_waste_usd: 985
+      services_affected: ["Kinesis"]
+      pricing_note: "Shard 시간당 $0.015. 유휴 90 shards × $0.015 × 730시간 = ~$985/mo. On-Demand 전환 또는 10 shard로 축소 가능."
+    answer:
+      severity: "high"
+      problem_summary: "Kinesis 스트림이 100 shard Provisioned 모드로 운영 중이나 실사용량은 10 shard 분량으로, 90 shard가 유휴 낭비"
+      recommendation: "On-Demand 모드로 전환하거나 shard 수를 10~15로 축소. 트래픽 변동이 크면 On-Demand, 안정적이면 Provisioned 10 shard 권장."
+      savings_estimate_monthly_usd: 985
+      evidence_pointers:
+        - "CloudWatch > Kinesis > IncomingRecords 평균 5000/sec (shard당 1000 records/sec 기준 = 5 shard 필요)"
+        - "WriteProvisionedThroughputExceeded = 0 (여유 과다)"
+        - "write_throughput_pct 평균 10%"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["kinesis", "shard", "overprovisioning", "on-demand", "streaming"]
+
+  # ──────────────────────────────────────────────
+  # L2-019: ElastiCache 노드 과잉
+  # ──────────────────────────────────────────────
+  - id: "L2-019"
+    title: "ElastiCache Redis 노드 과잉 프로비저닝"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["ElastiCache"]
+    description: |
+      Redis Replication Group이 6개 노드(cache.r5.large)로 구성되어 있으나,
+      Cache Hit Rate 98%, 동시 연결 50개, CPU 사용률 8%로 2개 노드면 충분한 워크로드입니다.
+      4개 노드를 줄이면 상당한 비용 절감이 가능합니다.
+    detection_method: "CloudWatch ElastiCache CurrConnections, EngineCPUUtilization, CacheHitRate 지표 분석"
+    resources:
+      problem:
+        - type: "aws_elasticache_replication_group"
+          config:
+            num_cache_clusters: 6
+            node_type: "cache.r5.large"
+            engine: "redis"
+            engine_version: "7.0"
+            automatic_failover: true
+          count: 1
+      decoy:
+        - type: "aws_elasticache_replication_group"
+          config:
+            num_cache_clusters: 2
+            node_type: "cache.r5.large"
+            engine: "redis"
+            engine_version: "7.0"
+            automatic_failover: true
+          count: 1
+    metrics_profile:
+      problem_resources:
+        cache_hit_rate_pct:
+          type: "normal"
+          mean: 98
+          std: 1
+        curr_connections:
+          type: "normal"
+          mean: 50
+          std: 10
+        cpu_percent:
+          type: "normal"
+          mean: 8
+          std: 3
+      decoy_resources:
+        cache_hit_rate_pct:
+          type: "normal"
+          mean: 95
+          std: 2
+        curr_connections:
+          type: "normal"
+          mean: 500
+          std: 100
+        cpu_percent:
+          type: "normal"
+          mean: 55
+          std: 12
+    cost_profile:
+      monthly_waste_usd: 665
+      services_affected: ["ElastiCache"]
+      pricing_note: "cache.r5.large = $0.228/hr. 초과 4 노드 × $0.228 × 730시간 = ~$665/mo 절감 가능."
+    answer:
+      severity: "medium"
+      problem_summary: "ElastiCache Redis 6노드 구성이나 CPU 8%, 연결 50개로 2노드면 충분. 4노드 과잉."
+      recommendation: "Replication Group을 2노드(Primary + 1 Replica)로 축소. 축소 전 피크 시간 연결 수/메모리 사용량 검증 필수. Reserved Node 적용도 검토."
+      savings_estimate_monthly_usd: 665
+      evidence_pointers:
+        - "CloudWatch > ElastiCache > EngineCPUUtilization 평균 8%"
+        - "CurrConnections 평균 50 (6노드에 분산 시 노드당 ~8개)"
+        - "Decoy 클러스터는 2노드에서 연결 500개를 정상 처리 중"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["elasticache", "redis", "overprovisioning", "right-sizing", "cache"]
+
+  # ──────────────────────────────────────────────
+  # L2-020: RDS Read Replica 미사용
+  # ──────────────────────────────────────────────
+  - id: "L2-020"
+    title: "RDS Read Replica 미사용 (읽기 트래픽 미분산)"
+    category: "overprovisioning"
+    level: "L2"
+    aws_services: ["RDS"]
+    description: |
+      RDS Read Replica가 3개 생성되어 있으나, 읽기 트래픽이 Primary 인스턴스로만 향하고 있습니다.
+      Replica들의 Read IOPS가 거의 0이고 CPU도 3% 수준으로, 복제 유지 비용만 발생하는 상태입니다.
+      애플리케이션의 DB 연결 설정에서 Reader Endpoint를 사용하지 않는 설정 오류로 추정됩니다.
+    detection_method: "CloudWatch RDS ReadIOPS, CPUUtilization을 Primary vs Replica 비교 분석"
+    resources:
+      problem:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.xlarge"
+            engine: "mysql"
+            engine_version: "8.0"
+            role: "read_replica"
+            multi_az: false
+            storage_type: "gp3"
+            allocated_storage: 500
+          count: 3
+      decoy:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.xlarge"
+            engine: "mysql"
+            engine_version: "8.0"
+            role: "primary"
+            multi_az: true
+            storage_type: "gp3"
+            allocated_storage: 500
+          count: 1
+    metrics_profile:
+      problem_resources:
+        read_iops:
+          type: "normal"
+          mean: 5
+          std: 2
+        cpu_percent:
+          type: "normal"
+          mean: 3
+          std: 1
+        replica_lag_seconds:
+          type: "normal"
+          mean: 0.5
+          std: 0.2
+      decoy_resources:
+        read_iops:
+          type: "normal"
+          mean: 5000
+          std: 1000
+        cpu_percent:
+          type: "normal"
+          mean: 75
+          std: 10
+        write_iops:
+          type: "normal"
+          mean: 2000
+          std: 500
+    cost_profile:
+      monthly_waste_usd: 1051
+      services_affected: ["RDS"]
+      pricing_note: "db.r5.xlarge = $0.48/hr. 미사용 Replica 3개 × $0.48 × 730시간 = ~$1051/mo. Replica 삭제 또는 앱에서 Reader Endpoint 사용 설정."
+    answer:
+      severity: "high"
+      problem_summary: "RDS Read Replica 3개가 생성되어 있으나 읽기 트래픽이 전혀 분산되지 않아 Replica가 유휴 상태. 앱의 DB 연결 설정 오류로 추정."
+      recommendation: "1) 앱 연결 설정에서 Reader Endpoint로 읽기 쿼리 분산 설정. 2) 읽기 분산이 불필요하면 Replica 삭제. 3) 분산 적용 후 Primary CPU 감소 및 Replica Read IOPS 증가 확인."
+      savings_estimate_monthly_usd: 1051
+      evidence_pointers:
+        - "Replica ReadIOPS 평균 5 vs Primary ReadIOPS 평균 5000"
+        - "Replica CPU 3% vs Primary CPU 75%"
+        - "3개 Replica 모두 동일하게 유휴 상태 → 앱 레벨 설정 오류 시사"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["rds", "read-replica", "overprovisioning", "unused", "database", "misconfiguration"]

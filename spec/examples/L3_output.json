@@ -1,0 +1,116 @@
+{
+  "analysis": {
+    "problems_found": [
+      {
+        "resource": "eks-nodegroup-general",
+        "issue_type": "overprovisioned",
+        "severity": "high",
+        "evidence": [
+          "노드 그룹: m5.2xlarge × 8 (고정)",
+          "평균 CPU 사용률: 22%",
+          "야간(00-06시) CPU: 5% 미만",
+          "Auto Scaling 미설정 — 탄력성 부재"
+        ],
+        "recommendation": "Cluster Autoscaler + Karpenter 도입으로 노드 자동 스케일링 적용",
+        "estimated_savings": 800
+      },
+      {
+        "resource": "nat-gateway-az-a",
+        "issue_type": "network",
+        "severity": "medium",
+        "evidence": [
+          "NAT Gateway 월 데이터 처리: 2.5TB",
+          "S3/DynamoDB 트래픽이 NAT를 경유 중",
+          "VPC Endpoint 미설정"
+        ],
+        "recommendation": "S3, DynamoDB VPC Endpoint 생성으로 NAT 경유 트래픽 제거",
+        "estimated_savings": 112
+      },
+      {
+        "resource": "rds-replica-read-02",
+        "issue_type": "unused",
+        "severity": "medium",
+        "evidence": [
+          "Read Replica 연결 수: 0 (30일간)",
+          "CPU 사용률: 1% (복제 오버헤드만)",
+          "Multi-AZ 구성과 별개의 불필요 복제본"
+        ],
+        "recommendation": "미사용 Read Replica 삭제",
+        "estimated_savings": 350
+      }
+    ],
+    "unit_economics": {
+      "cost_per_1k_requests": 4.12,
+      "cost_per_order": 1.35,
+      "trend": "degrading",
+      "vs_previous_period": 23.5
+    },
+    "elasticity": {
+      "score": 25,
+      "detail": "EKS 노드그룹이 고정 크기(8대)로 운영되어 탄력성이 매우 낮음. 주간 피크 대비 야간 리소스 사용률이 80% 감소하나 인프라는 동일 규모 유지. Cluster Autoscaler/Karpenter 도입 시 탄력성 점수 75+ 달성 가능."
+    }
+  },
+  "recommendations": [
+    {
+      "action": "enable_autoscaling",
+      "target": "eks-nodegroup-general",
+      "detail": "Karpenter 도입으로 노드 자동 스케일링 활성화. min=2, max=10 설정. Spot 인스턴스 혼합 사용으로 추가 30% 절감 가능.",
+      "priority": "critical",
+      "estimated_savings": 800,
+      "risk": "medium"
+    },
+    {
+      "action": "create_vpc_endpoint",
+      "target": "nat-gateway-az-a",
+      "detail": "S3 Gateway Endpoint + DynamoDB Gateway Endpoint 생성. NAT Gateway 데이터 처리 비용 $0.045/GB 절감.",
+      "priority": "high",
+      "estimated_savings": 112,
+      "risk": "low"
+    },
+    {
+      "action": "delete",
+      "target": "rds-replica-read-02",
+      "detail": "30일간 연결 없는 Read Replica 삭제. 필요 시 재생성 가능.",
+      "priority": "medium",
+      "estimated_savings": 350,
+      "risk": "low"
+    },
+    {
+      "action": "purchase_savings_plan",
+      "target": "EC2/Fargate",
+      "detail": "안정적 베이스라인 워크로드(노드 2대 상시 운영분)에 대해 1년 Compute Savings Plan 적용. 최대 35% 추가 절감.",
+      "priority": "medium",
+      "estimated_savings": 200,
+      "risk": "low"
+    }
+  ],
+  "alerts": [
+    {
+      "channel": "slack",
+      "urgency": "warning",
+      "title": "비용 효율성 악화 경고",
+      "message": "주문당 비용이 전월 대비 23.5% 증가했습니다 ($1.09 → $1.35). EKS 노드그룹 고정 크기(8대)로 인한 야간 유휴 비용이 주요 원인입니다.",
+      "severity": "high"
+    },
+    {
+      "channel": "email",
+      "urgency": "info",
+      "title": "RI/SP 커버리지 부족",
+      "message": "현재 On-Demand 비율이 85%입니다. Compute Savings Plan 적용 시 월 $200 추가 절감이 가능합니다.",
+      "severity": "medium"
+    },
+    {
+      "channel": "slack",
+      "urgency": "critical",
+      "title": "미사용 리소스 탐지",
+      "message": "rds-replica-read-02가 30일간 연결 0건입니다. 즉시 검토가 필요합니다. 월 $350 낭비 중.",
+      "severity": "high"
+    }
+  ],
+  "optimized_terraform": "# EKS Node Group with Autoscaling\nresource \"aws_eks_node_group\" \"general\" {\n  cluster_name    = aws_eks_cluster.main.name\n  node_group_name = \"general\"\n  instance_types  = [\"m5.xlarge\"]\n  \n  scaling_config {\n    desired_size = 3\n    min_size     = 2\n    max_size     = 10\n  }\n}\n\n# S3 VPC Endpoint\nresource \"aws_vpc_endpoint\" \"s3\" {\n  vpc_id       = aws_vpc.main.id\n  service_name = \"com.amazonaws.us-east-1.s3\"\n}\n\n# DynamoDB VPC Endpoint  \nresource \"aws_vpc_endpoint\" \"dynamodb\" {\n  vpc_id       = aws_vpc.main.id\n  service_name = \"com.amazonaws.us-east-1.dynamodb\"\n}",
+  "summary": {
+    "total_issues_found": 3,
+    "total_monthly_savings_usd": 1462,
+    "confidence_score": 72
+  }
+}

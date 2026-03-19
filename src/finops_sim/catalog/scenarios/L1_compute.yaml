@@ -1,0 +1,509 @@
+scenarios:
+  - id: "L1-001"
+    title: "중지된 EC2 미삭제"
+    category: "unused"
+    level: "L1"
+    aws_services: ["EC2", "EBS"]
+    description: |
+      EC2 인스턴스를 Stop했지만 삭제하지 않아 연결된 EBS 볼륨이 계속 과금되고 있습니다.
+      "중지=무료"라는 착각으로 인해 45일간 방치된 인스턴스에 대형 gp2 볼륨 3개가
+      매달 스토리지 비용을 발생시키고 있습니다.
+    detection_method: "EC2 인스턴스 상태가 stopped이며 연결된 EBS 볼륨의 I/O가 0인 리소스 식별"
+    resources:
+      problem:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.xlarge"
+            state: "stopped"
+            stopped_days: 45
+          count: 1
+        - type: "aws_ebs_volume"
+          config:
+            volume_type: "gp2"
+            size_gb: 500
+            attached_to: "stopped_instance"
+          count: 3
+      decoy:
+        - type: "aws_instance"
+          config:
+            instance_type: "t3.medium"
+            state: "running"
+          count: 2
+    metrics_profile:
+      problem_resources:
+        cpu_utilization: { type: "constant", value: 0 }
+        network_bytes_in: { type: "constant", value: 0 }
+        network_bytes_out: { type: "constant", value: 0 }
+        ebs_read_ops: { type: "constant", value: 0 }
+        ebs_write_ops: { type: "constant", value: 0 }
+      decoy_resources:
+        cpu_utilization: { type: "normal", mean: 45, std: 15 }
+        network_bytes_in: { type: "normal", mean: 1000, std: 300 }
+        network_bytes_out: { type: "normal", mean: 1000, std: 300 }
+    cost_profile:
+      monthly_waste_usd: 150
+      services_affected: ["EBS"]
+      pricing_note: "gp2 500GB × 3 × $0.10/GB = $150/mo. 인스턴스 자체는 stopped 상태라 컴퓨트 비용 없음."
+    answer:
+      severity: "medium"
+      problem_summary: "45일간 중지된 EC2 인스턴스에 연결된 gp2 EBS 볼륨 3개(각 500GB)가 매월 $150의 스토리지 비용을 발생시키고 있음"
+      recommendation: "필요 데이터 백업 후 EBS 볼륨 및 중지된 인스턴스를 삭제하거나, 스냅샷으로 전환하여 비용 절감"
+      savings_estimate_monthly_usd: 150
+      evidence_pointers:
+        - "EC2 인스턴스 상태: stopped (45일)"
+        - "EBS 볼륨 I/O: 0 (전체 기간)"
+        - "gp2 500GB × 3 볼륨 과금 지속"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ec2", "ebs", "stopped-instance", "storage-waste"]
+
+  - id: "L1-002"
+    title: "gp2 EBS 볼륨 미전환"
+    category: "rate"
+    level: "L1"
+    aws_services: ["EBS"]
+    description: |
+      gp2 볼륨이 gp3로 전환되지 않아 동일 성능 대비 약 20% 높은 비용을 지불하고 있습니다.
+      gp3는 기본 3,000 IOPS/125 MiB/s를 제공하면서 GB당 단가가 더 저렴합니다.
+      현재 gp2 볼륨들의 실제 IOPS 사용량은 낮아 gp3 전환 시 성능 저하 없이 비용 절감이 가능합니다.
+    detection_method: "gp2 타입 EBS 볼륨을 식별하고 실제 IOPS 사용량이 gp3 기본 제공량 이하인지 확인"
+    resources:
+      problem:
+        - type: "aws_ebs_volume"
+          config:
+            volume_type: "gp2"
+            size_gb: 200
+          count: 10
+      decoy:
+        - type: "aws_ebs_volume"
+          config:
+            volume_type: "gp3"
+            size_gb: 100
+          count: 5
+    metrics_profile:
+      problem_resources:
+        ebs_iops: { type: "normal", mean: 100, std: 30 }
+      decoy_resources:
+        ebs_iops: { type: "normal", mean: 500, std: 100 }
+    cost_profile:
+      monthly_waste_usd: 40
+      services_affected: ["EBS"]
+      pricing_note: "gp2 $0.10/GB vs gp3 $0.08/GB → 차이 $0.02/GB × 200GB × 10 = $40/mo"
+    answer:
+      severity: "low"
+      problem_summary: "10개의 gp2 200GB 볼륨이 gp3로 전환되지 않아 매월 $40의 추가 비용 발생"
+      recommendation: "모든 gp2 볼륨을 gp3로 전환. 실제 IOPS 사용량(평균 100)이 gp3 기본 제공 3,000 IOPS 이하이므로 성능 저하 없음"
+      savings_estimate_monthly_usd: 40
+      evidence_pointers:
+        - "gp2 볼륨 10개 식별 (각 200GB)"
+        - "평균 IOPS 사용량: 100 (gp3 기본 3,000 IOPS 대비 극히 낮음)"
+        - "gp2→gp3 전환 시 GB당 $0.02 절감"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ebs", "gp2", "gp3", "volume-type", "rate-optimization"]
+
+  - id: "L1-003"
+    title: "비연결 Elastic IP"
+    category: "unused"
+    level: "L1"
+    aws_services: ["EC2", "VPC"]
+    description: |
+      Elastic IP(EIP) 5개가 어떤 인스턴스에도 연결되지 않은 채 60일간 방치되고 있습니다.
+      AWS는 미연결 EIP에 대해 시간당 $0.005를 과금하며, 이는 리소스 낭비입니다.
+    detection_method: "연결된 인스턴스가 없는 Elastic IP를 식별하고 방치 기간 확인"
+    resources:
+      problem:
+        - type: "aws_eip"
+          config:
+            attached: false
+            unattached_days: 60
+          count: 5
+      decoy:
+        - type: "aws_eip"
+          config:
+            attached: true
+            attached_to: "running_instance"
+          count: 3
+    metrics_profile:
+      problem_resources:
+        network_bytes_in: { type: "constant", value: 0 }
+        network_bytes_out: { type: "constant", value: 0 }
+      decoy_resources:
+        network_bytes_in: { type: "normal", mean: 5000, std: 1500 }
+        network_bytes_out: { type: "normal", mean: 3000, std: 1000 }
+    cost_profile:
+      monthly_waste_usd: 18.25
+      services_affected: ["VPC"]
+      pricing_note: "$0.005/hr × 730hr × 5 EIP = $18.25/mo"
+    answer:
+      severity: "low"
+      problem_summary: "5개의 Elastic IP가 60일간 미연결 상태로 방치되어 매월 $18.25 낭비"
+      recommendation: "사용하지 않는 EIP를 릴리스(해제)하여 비용 제거"
+      savings_estimate_monthly_usd: 18.25
+      evidence_pointers:
+        - "미연결 EIP 5개 식별"
+        - "60일간 트래픽 0"
+        - "시간당 $0.005 과금 지속"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["eip", "elastic-ip", "vpc", "unattached"]
+
+  - id: "L1-004"
+    title: "개발 환경 RDS Multi-AZ"
+    category: "overprovisioning"
+    level: "L1"
+    aws_services: ["RDS"]
+    description: |
+      Dev/Staging 환경의 RDS 인스턴스에 Multi-AZ가 활성화되어 있어 비용이 2배로 발생하고 있습니다.
+      개발 환경에서는 고가용성이 불필요하며, Multi-AZ를 비활성화하면 인스턴스 비용을 절반으로 줄일 수 있습니다.
+    detection_method: "environment 태그가 dev/staging인 RDS 인스턴스 중 Multi-AZ 활성화된 리소스 식별"
+    resources:
+      problem:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.large"
+            multi_az: true
+            environment: "dev"
+          count: 2
+      decoy:
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.large"
+            multi_az: true
+            environment: "production"
+          count: 1
+    metrics_profile:
+      problem_resources:
+        cpu_utilization: { type: "normal", mean: 15, std: 5 }
+        database_connections: { type: "normal", mean: 5, std: 2 }
+      decoy_resources:
+        cpu_utilization: { type: "normal", mean: 60, std: 15 }
+        database_connections: { type: "normal", mean: 100, std: 30 }
+    cost_profile:
+      monthly_waste_usd: 350.4
+      services_affected: ["RDS"]
+      pricing_note: "Multi-AZ 추가 비용: 2 × $0.24/hr × 730hr = $350.4/mo (Single-AZ 전환 시 절감액)"
+    answer:
+      severity: "medium"
+      problem_summary: "Dev 환경 RDS 인스턴스 2개에 불필요한 Multi-AZ가 활성화되어 매월 $350.4 추가 비용 발생"
+      recommendation: "Dev/Staging 환경 RDS의 Multi-AZ를 비활성화하여 비용 절감. 고가용성은 Production 환경에만 적용"
+      savings_estimate_monthly_usd: 350.4
+      evidence_pointers:
+        - "Dev 환경 RDS 2개 Multi-AZ 활성화 확인"
+        - "CPU 사용률 평균 15% (저부하)"
+        - "DB 커넥션 평균 5개 (개발 수준)"
+        - "Production RDS는 정상 사용 중 (CPU 60%, 커넥션 100)"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["rds", "multi-az", "dev-environment", "overprovisioning"]
+
+  - id: "L1-005"
+    title: "사용 안 하는 Load Balancer"
+    category: "unused"
+    level: "L1"
+    aws_services: ["ELB"]
+    description: |
+      ALB(Application Load Balancer) 2개가 30일간 트래픽이 전혀 없는 상태로 방치되고 있습니다.
+      타겟 그룹에 연결된 인스턴스가 없거나 트래픽이 라우팅되지 않아 시간당 고정 비용만 발생합니다.
+    detection_method: "RequestCount 및 ActiveConnectionCount가 0인 Load Balancer 식별"
+    resources:
+      problem:
+        - type: "aws_lb"
+          config:
+            type: "application"
+            idle_days: 30
+            healthy_targets: 0
+          count: 2
+      decoy:
+        - type: "aws_lb"
+          config:
+            type: "application"
+            healthy_targets: 3
+          count: 1
+    metrics_profile:
+      problem_resources:
+        request_count: { type: "constant", value: 0 }
+        active_connection_count: { type: "constant", value: 0 }
+      decoy_resources:
+        request_count: { type: "normal", mean: 1000, std: 200 }
+        active_connection_count: { type: "normal", mean: 50, std: 15 }
+    cost_profile:
+      monthly_waste_usd: 32.85
+      services_affected: ["ELB"]
+      pricing_note: "ALB 고정 비용: $0.0225/hr × 730hr × 2 = $32.85/mo (LCU 비용 제외, 트래픽 0)"
+    answer:
+      severity: "low"
+      problem_summary: "ALB 2개가 30일간 트래픽 0으로 방치되어 매월 $32.85의 고정 비용 낭비"
+      recommendation: "미사용 ALB를 삭제하거나, 관련 서비스가 있다면 통합하여 LB 수 줄이기"
+      savings_estimate_monthly_usd: 32.85
+      evidence_pointers:
+        - "ALB 2개 RequestCount: 0 (30일간)"
+        - "ActiveConnectionCount: 0"
+        - "Healthy Target: 0"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["alb", "elb", "load-balancer", "idle", "unused"]
+
+  - id: "L1-006"
+    title: "CloudWatch Logs retention = never"
+    category: "unused"
+    level: "L1"
+    aws_services: ["CloudWatch"]
+    description: |
+      CloudWatch Log Group 8개의 보존 기간이 '영구(never expire)'로 설정되어 있어
+      로그 데이터가 무한히 축적되고 있습니다. 하루 약 2GB씩 수집되며, 누적 스토리지 비용이
+      지속적으로 증가하고 있습니다.
+    detection_method: "retention_in_days가 설정되지 않은(영구 보존) CloudWatch Log Group 식별"
+    resources:
+      problem:
+        - type: "aws_cloudwatch_log_group"
+          config:
+            retention_days: 0
+            daily_ingestion_gb: 2
+          count: 8
+      decoy:
+        - type: "aws_cloudwatch_log_group"
+          config:
+            retention_days: 90
+          count: 2
+    metrics_profile:
+      problem_resources:
+        log_bytes_ingested: { type: "normal", mean: 2000, std: 500, unit: "MB/day" }
+      decoy_resources:
+        log_bytes_ingested: { type: "normal", mean: 2000, std: 500, unit: "MB/day" }
+    cost_profile:
+      monthly_waste_usd: 144
+      services_affected: ["CloudWatch"]
+      pricing_note: "누적 약 4.8TB 스토리지 × $0.03/GB = $144/mo (보존 정책 적용 시 대폭 감소)"
+    answer:
+      severity: "medium"
+      problem_summary: "8개 Log Group이 영구 보존으로 설정되어 약 4.8TB 로그가 축적, 매월 $144 스토리지 비용 발생"
+      recommendation: "비즈니스 요구에 맞는 보존 기간 설정 (예: 30일, 90일). 장기 보관 필요 시 S3로 내보내기 활용"
+      savings_estimate_monthly_usd: 144
+      evidence_pointers:
+        - "8개 Log Group retention = never"
+        - "일일 수집량: 약 2GB/group"
+        - "누적 스토리지: 약 4.8TB"
+        - "스토리지 비용: $0.03/GB/month"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["cloudwatch", "logs", "retention", "storage-waste"]
+
+  - id: "L1-007"
+    title: "오래된 EBS 스냅샷 방치"
+    category: "unused"
+    level: "L1"
+    aws_services: ["EC2", "EBS"]
+    description: |
+      소스 볼륨이 이미 삭제된 EBS 스냅샷 200개(총 2TB)가 평균 180일간 방치되고 있습니다.
+      원본 볼륨이 존재하지 않아 복원 필요성이 낮으며, 스토리지 비용만 발생시킵니다.
+    detection_method: "소스 볼륨이 삭제된(source_volume_deleted) 오래된 EBS 스냅샷 식별"
+    resources:
+      problem:
+        - type: "aws_ebs_snapshot"
+          config:
+            total_size_gb: 2000
+            source_volume_deleted: true
+            avg_age_days: 180
+          count: 200
+      decoy:
+        - type: "aws_ebs_snapshot"
+          config:
+            age_days: 7
+            source_volume_exists: true
+          count: 10
+    metrics_profile:
+      problem_resources:
+        storage_gb: { type: "constant", value: 2000 }
+      decoy_resources:
+        storage_gb: { type: "constant", value: 50 }
+    cost_profile:
+      monthly_waste_usd: 100
+      services_affected: ["EBS"]
+      pricing_note: "EBS 스냅샷: 2TB × $0.05/GB = $100/mo"
+    answer:
+      severity: "medium"
+      problem_summary: "소스 볼륨 삭제된 EBS 스냅샷 200개(2TB)가 180일간 방치되어 매월 $100 낭비"
+      recommendation: "소스 볼륨이 삭제된 스냅샷을 검토 후 불필요한 스냅샷 일괄 삭제. 필요 시 AMI 등록 여부 확인 후 정리"
+      savings_estimate_monthly_usd: 100
+      evidence_pointers:
+        - "EBS 스냅샷 200개 (총 2TB)"
+        - "소스 볼륨 삭제됨 (source_volume_deleted)"
+        - "평균 보존 기간: 180일"
+        - "스냅샷 비용: $0.05/GB/month"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ebs", "snapshot", "orphaned", "storage-waste"]
+
+  - id: "L1-008"
+    title: "미사용 AMI + 연결 스냅샷"
+    category: "unused"
+    level: "L1"
+    aws_services: ["EC2", "EBS"]
+    description: |
+      120일 이상 사용되지 않은 AMI 30개와 연결된 EBS 스냅샷 60개(총 600GB)가 방치되고 있습니다.
+      AMI를 등록 해제(deregister)하지 않으면 연결된 스냅샷이 자동 삭제되지 않아 계속 과금됩니다.
+    detection_method: "Launch Template/Configuration에서 참조되지 않고 120일 이상 미사용 AMI 식별"
+    resources:
+      problem:
+        - type: "aws_ami"
+          config:
+            unused_days: 120
+            snapshots_per_ami: 2
+            total_snapshot_gb: 600
+          count: 30
+        - type: "aws_ebs_snapshot"
+          config:
+            associated_with_ami: true
+            total_size_gb: 600
+          count: 60
+      decoy:
+        - type: "aws_ami"
+          config:
+            used_in_launch_template: true
+          count: 5
+    metrics_profile:
+      problem_resources:
+        snapshot_storage_gb: { type: "constant", value: 600 }
+      decoy_resources:
+        instance_launches: { type: "normal", mean: 3, std: 1, unit: "per_week" }
+    cost_profile:
+      monthly_waste_usd: 30
+      services_affected: ["EBS"]
+      pricing_note: "AMI 연결 스냅샷: 600GB × $0.05/GB = $30/mo"
+    answer:
+      severity: "low"
+      problem_summary: "120일간 미사용 AMI 30개와 연결 스냅샷 60개(600GB)가 매월 $30 스토리지 비용 발생"
+      recommendation: "미사용 AMI를 deregister하고 연결된 스냅샷을 삭제. AMI 생성 자동화 파이프라인에 lifecycle 정책 적용"
+      savings_estimate_monthly_usd: 30
+      evidence_pointers:
+        - "미사용 AMI 30개 (120일 이상)"
+        - "연결 스냅샷 60개 (총 600GB)"
+        - "Launch Template에서 미참조"
+        - "스냅샷 비용: $0.05/GB/month"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ami", "ebs", "snapshot", "unused-image", "lifecycle"]
+
+  - id: "L1-009"
+    title: "ECR 이미지 Lifecycle 정책 없음"
+    category: "unused"
+    level: "L1"
+    aws_services: ["ECR"]
+    description: |
+      ECR 리포지토리 3개에 Lifecycle 정책이 설정되지 않아 도커 이미지가 무한히 축적되고 있습니다.
+      리포지토리당 평균 150개의 이미지가 쌓여 총 200GB의 스토리지를 차지하고 있습니다.
+    detection_method: "Lifecycle 정책이 없는 ECR 리포지토리 중 이미지 수가 과도한 리포지토리 식별"
+    resources:
+      problem:
+        - type: "aws_ecr_repository"
+          config:
+            lifecycle_policy: null
+            image_count: 150
+            total_size_gb: 67
+          count: 3
+      decoy:
+        - type: "aws_ecr_repository"
+          config:
+            lifecycle_policy: "keep_last_10"
+            image_count: 10
+          count: 2
+    metrics_profile:
+      problem_resources:
+        image_count: { type: "step", direction: "increasing", start: 120, step: 2, unit: "per_day" }
+      decoy_resources:
+        image_count: { type: "constant", value: 10 }
+    cost_profile:
+      monthly_waste_usd: 20
+      services_affected: ["ECR"]
+      pricing_note: "ECR 스토리지: 200GB × $0.10/GB = $20/mo"
+    answer:
+      severity: "low"
+      problem_summary: "3개 ECR 리포지토리에 Lifecycle 정책 없이 이미지 450개(200GB)가 축적되어 매월 $20 낭비"
+      recommendation: "ECR Lifecycle 정책을 적용하여 최근 N개 이미지만 유지 (예: 최근 10개). CI/CD 파이프라인에 정리 자동화 추가"
+      savings_estimate_monthly_usd: 20
+      evidence_pointers:
+        - "3개 리포지토리 Lifecycle 정책 미설정"
+        - "리포지토리당 평균 150개 이미지"
+        - "총 스토리지: 200GB"
+        - "이미지 수 지속 증가 추세"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["ecr", "docker", "lifecycle", "container-registry", "storage-waste"]
+
+  - id: "L1-010"
+    title: "DynamoDB 프로비전드 용량 과잉"
+    category: "overprovisioning"
+    level: "L1"
+    aws_services: ["DynamoDB"]
+    description: |
+      DynamoDB 테이블이 프로비전드 용량 모드로 설정되어 있으나 실제 사용률이 약 10%에 불과합니다.
+      피크 트래픽 기준으로 RCU 5000, WCU 1000을 고정 할당했지만, 평균 소비량은 RCU 500, WCU 100 수준입니다.
+    detection_method: "프로비전드 용량 대비 실제 ConsumedReadCapacityUnits/ConsumedWriteCapacityUnits 비율이 낮은 테이블 식별"
+    resources:
+      problem:
+        - type: "aws_dynamodb_table"
+          config:
+            billing_mode: "PROVISIONED"
+            write_capacity_units: 1000
+            read_capacity_units: 5000
+          count: 1
+      decoy:
+        - type: "aws_dynamodb_table"
+          config:
+            billing_mode: "PAY_PER_REQUEST"
+          count: 1
+    metrics_profile:
+      problem_resources:
+        consumed_write_capacity_units: { type: "normal", mean: 100, std: 30 }
+        consumed_read_capacity_units: { type: "normal", mean: 500, std: 100 }
+      decoy_resources:
+        consumed_write_capacity_units: { type: "normal", mean: 800, std: 200 }
+        consumed_read_capacity_units: { type: "normal", mean: 3000, std: 500 }
+    cost_profile:
+      monthly_waste_usd: 522
+      services_affected: ["DynamoDB"]
+      pricing_note: "미사용 WCU: 900 × $0.00065/hr × 730hr ≈ $427. 미사용 RCU: 4500 × $0.00013/hr × 730hr ≈ $427. 총 약 $522/mo 낭비 (실사용 대비 초과분)"
+    answer:
+      severity: "high"
+      problem_summary: "DynamoDB 프로비전드 용량이 실제 사용량의 10배로 설정되어 매월 $522 낭비. WCU 1000 중 100만, RCU 5000 중 500만 사용"
+      recommendation: "Auto Scaling 활성화 또는 On-Demand 모드로 전환. 트래픽 패턴이 예측 가능하면 Auto Scaling + target utilization 70%로 설정"
+      savings_estimate_monthly_usd: 522
+      evidence_pointers:
+        - "프로비전드 WCU: 1000, 실제 사용: 평균 100 (10%)"
+        - "프로비전드 RCU: 5000, 실제 사용: 평균 500 (10%)"
+        - "사용률 10% 수준으로 과잉 프로비저닝 명확"
+        - "Decoy 테이블은 On-Demand로 적절히 운영 중"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["dynamodb", "provisioned-capacity", "overprovisioning", "auto-scaling"]

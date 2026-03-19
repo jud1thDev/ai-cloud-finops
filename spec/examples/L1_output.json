@@ -1,0 +1,77 @@
+{
+  "analysis": {
+    "problems_found": [
+      {
+        "resource": "instance-a1b2c3",
+        "issue_type": "unused",
+        "severity": "medium",
+        "evidence": [
+          "EC2 인스턴스 상태: stopped (45일간)",
+          "CPU 사용률: 0% (전체 모니터링 기간)",
+          "네트워크 I/O: 0 bytes (전체 기간)"
+        ],
+        "recommendation": "인스턴스 삭제 후 필요시 AMI에서 재생성",
+        "estimated_savings": 0
+      },
+      {
+        "resource": "volume-x1y2z3",
+        "issue_type": "unused",
+        "severity": "medium",
+        "evidence": [
+          "EBS 볼륨이 중지된 인스턴스에 연결됨",
+          "EBS Read/Write IOPS: 0 (전체 기간)",
+          "gp2 500GB 볼륨 — 월 $50 과금 지속"
+        ],
+        "recommendation": "스냅샷 생성 후 볼륨 삭제",
+        "estimated_savings": 50
+      },
+      {
+        "resource": "volume-d4e5f6",
+        "issue_type": "unused",
+        "severity": "medium",
+        "evidence": [
+          "EBS 볼륨이 중지된 인스턴스에 연결됨",
+          "EBS I/O: 0",
+          "gp2 500GB"
+        ],
+        "recommendation": "스냅샷 생성 후 볼륨 삭제",
+        "estimated_savings": 50
+      },
+      {
+        "resource": "volume-g7h8i9",
+        "issue_type": "unused",
+        "severity": "medium",
+        "evidence": [
+          "EBS 볼륨이 중지된 인스턴스에 연결됨",
+          "EBS I/O: 0",
+          "gp2 500GB"
+        ],
+        "recommendation": "스냅샷 생성 후 볼륨 삭제",
+        "estimated_savings": 50
+      }
+    ]
+  },
+  "recommendations": [
+    {
+      "action": "delete",
+      "target": "instance-a1b2c3",
+      "detail": "45일간 중지된 m5.xlarge 인스턴스를 삭제합니다. 필요시 AMI 백업 후 진행.",
+      "priority": "medium",
+      "estimated_savings": 0,
+      "risk": "medium"
+    },
+    {
+      "action": "snapshot_and_delete",
+      "target": "volume-x1y2z3, volume-d4e5f6, volume-g7h8i9",
+      "detail": "중지된 인스턴스에 연결된 gp2 500GB 볼륨 3개를 스냅샷으로 백업 후 삭제합니다.",
+      "priority": "high",
+      "estimated_savings": 150,
+      "risk": "low"
+    }
+  ],
+  "summary": {
+    "total_issues_found": 4,
+    "total_monthly_savings_usd": 150,
+    "confidence_score": 85
+  }
+}

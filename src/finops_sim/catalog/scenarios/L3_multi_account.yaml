@@ -1,0 +1,497 @@
+scenarios:
+  # ---------------------------------------------------------------------------
+  # L3-031: 태그 없는 리소스 50% — unallocated spend 잠식
+  # ---------------------------------------------------------------------------
+  - id: "L3-031"
+    title: "태그 없는 리소스 50% — unallocated spend가 전체 예산 잠식"
+    category: "tagging"
+    level: "L3"
+    aws_services: ["Organizations", "Cost Explorer"]
+    description: |
+      월 $10,000 클라우드 비용 중 약 50%($5,000)가 태그 미지정 리소스에서 발생하여
+      비용 할당(cost allocation)이 불가능한 상태이다. cost-center, team, environment
+      태그가 누락되어 있어 어떤 팀/프로젝트가 비용을 유발하는지 추적할 수 없고,
+      최적화 기회가 어디에 있는지 파악조차 되지 않는다. Cost Explorer의
+      unallocated spend 비율과 태그 커버리지 현황을 분석하여 문제를 식별해야 한다.
+    detection_method: "Cost Explorer 태그 커버리지 리포트 및 unallocated spend 비율 분석"
+    resources:
+      problem:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.large"
+            tags: {}
+          count: 6
+        - type: "aws_instance"
+          config:
+            instance_type: "c5.xlarge"
+            tags:
+              environment: "production"
+          count: 4
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.large"
+            engine: "postgres"
+            tags: {}
+          count: 3
+        - type: "aws_s3_bucket"
+          config:
+            tags: {}
+          count: 4
+        - type: "aws_lb"
+          config:
+            type: "application"
+            tags:
+              team: "platform"
+          count: 3
+      decoy:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.large"
+            tags:
+              cost-center: "CC-1001"
+              team: "backend"
+              environment: "production"
+              project: "api-gateway"
+          count: 4
+        - type: "aws_db_instance"
+          config:
+            instance_class: "db.r5.large"
+            engine: "postgres"
+            tags:
+              cost-center: "CC-1002"
+              team: "data"
+              environment: "production"
+              project: "analytics"
+          count: 3
+        - type: "aws_s3_bucket"
+          config:
+            tags:
+              cost-center: "CC-1001"
+              team: "backend"
+              environment: "production"
+              project: "api-gateway"
+          count: 3
+    metrics_profile:
+      problem_resources:
+        cpu_utilization:
+          type: "normal"
+          mean: 45
+          std: 20
+          unit: "percent"
+        memory_utilization:
+          type: "normal"
+          mean: 55
+          std: 15
+          unit: "percent"
+        tag_coverage:
+          type: "constant"
+          value: 0
+          unit: "percent"
+          note: "태그 없거나 불완전 — cost-center/team/environment 중 2개 이상 누락"
+        unallocated_spend_ratio:
+          type: "constant"
+          value: 50
+          unit: "percent"
+      decoy_resources:
+        cpu_utilization:
+          type: "normal"
+          mean: 50
+          std: 18
+          unit: "percent"
+        memory_utilization:
+          type: "normal"
+          mean: 52
+          std: 14
+          unit: "percent"
+        tag_coverage:
+          type: "constant"
+          value: 100
+          unit: "percent"
+    cost_profile:
+      monthly_waste_usd: 5000
+      services_affected: ["EC2", "RDS", "S3", "ELB"]
+      pricing_note: "월 총 비용 $10,000 중 $5,000이 태그 미지정 리소스에서 발생하여 비용 할당 및 최적화 우선순위 판단 불가"
+    answer:
+      severity: "critical"
+      problem_summary: "전체 리소스의 약 50%에 필수 비용 할당 태그(cost-center, team, environment)가 누락되어 있어, 월 $5,000의 비용이 unallocated spend로 분류되며 최적화 대상 식별이 불가능하다."
+      recommendation: "1) AWS Tag Policy를 활성화하여 필수 태그(cost-center, team, environment) 강제 적용. 2) AWS Config Rule(required-tags)로 미태그 리소스 탐지 및 알림 설정. 3) SCP(Service Control Policy)로 태그 없는 리소스 생성 차단. 4) 기존 미태그 리소스에 대한 일괄 태그 부여 캠페인 실시."
+      savings_estimate_monthly_usd: 5000
+      evidence_pointers:
+        - "Cost Explorer > Cost allocation tags > Unallocated spend = 50%"
+        - "20개 리소스에 cost-center/team/environment 태그 누락 또는 불완전"
+        - "태그 완비 리소스 10개는 정상적으로 팀/프로젝트별 비용 추적 가능"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["tagging", "cost-allocation", "governance", "multi-account", "unallocated-spend"]
+
+  # ---------------------------------------------------------------------------
+  # L3-032: Reserved Instance 패밀리 미스매치
+  # ---------------------------------------------------------------------------
+  - id: "L3-032"
+    title: "Reserved Instance 패밀리 미스매치 — m5 RI 보유, 워크로드 c5/r5 전환"
+    category: "rate"
+    level: "L3"
+    aws_services: ["EC2", "Cost Explorer"]
+    description: |
+      6개월 전 m5.xlarge 10대에 대한 1년 RI를 구매했으나, 이후 워크로드가
+      compute-optimized(c5)와 memory-optimized(r5)로 전환되었다.
+      현재 m5 RI는 미적용 상태로 유휴화되어 있고, 실제 운영 중인 c5/r5 인스턴스는
+      전액 on-demand 요금이 부과되고 있다. RI 활용률과 인스턴스 패밀리 불일치를
+      Cost Explorer RI Utilization 리포트에서 확인해야 한다.
+    detection_method: "Cost Explorer RI Utilization 리포트 및 인스턴스 패밀리별 사용량 교차 분석"
+    resources:
+      problem:
+        - type: "aws_instance"
+          config:
+            instance_type: "c5.xlarge"
+            pricing: "on-demand"
+            state: "running"
+          count: 5
+        - type: "aws_instance"
+          config:
+            instance_type: "r5.xlarge"
+            pricing: "on-demand"
+            state: "running"
+          count: 5
+        - type: "aws_ec2_reserved_instances"
+          config:
+            instance_type: "m5.xlarge"
+            offering_type: "All Upfront"
+            term: "1yr"
+            state: "active"
+            utilization: 0
+          count: 10
+      decoy:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.large"
+            pricing: "reserved"
+            state: "running"
+          count: 5
+        - type: "aws_ec2_reserved_instances"
+          config:
+            instance_type: "m5.large"
+            offering_type: "All Upfront"
+            term: "1yr"
+            state: "active"
+            utilization: 100
+          count: 5
+    metrics_profile:
+      problem_resources:
+        cpu_utilization:
+          type: "normal"
+          mean: 60
+          std: 15
+          unit: "percent"
+          note: "인스턴스 자체는 정상 사용 중 — RI 패밀리만 불일치"
+        ri_utilization:
+          type: "constant"
+          value: 0
+          unit: "percent"
+          note: "m5 RI 10대 미적용 (매칭 인스턴스 없음)"
+        on_demand_spend:
+          type: "constant"
+          value: 1402
+          unit: "usd_per_month"
+          note: "c5/r5 10대 on-demand: $0.192/hr avg × 730hr"
+      decoy_resources:
+        cpu_utilization:
+          type: "normal"
+          mean: 55
+          std: 12
+          unit: "percent"
+        ri_utilization:
+          type: "constant"
+          value: 100
+          unit: "percent"
+    cost_profile:
+      monthly_waste_usd: 1402
+      services_affected: ["EC2"]
+      pricing_note: "c5.xlarge $0.170/hr, r5.xlarge $0.252/hr 평균 $0.192/hr × 10대 × 730hr = $1,402/mo on-demand 과금. m5 RI 이미 선결제 완료되어 이중 비용 발생."
+    answer:
+      severity: "critical"
+      problem_summary: "m5.xlarge 10대 RI를 보유 중이나 실제 워크로드가 c5.xlarge 5대, r5.xlarge 5대로 전환되어, RI가 전혀 적용되지 않고 월 $1,402의 on-demand 이중 과금이 발생하고 있다."
+      recommendation: "1) EC2 RI Marketplace에서 미사용 m5 RI를 매각. 2) 현재 c5/r5 워크로드에 맞는 Convertible RI로 교환하거나 Compute Savings Plan으로 전환. 3) 향후 RI 구매 시 패밀리 변경 가능성을 고려하여 Convertible RI 또는 Compute Savings Plan 우선 검토."
+      savings_estimate_monthly_usd: 1402
+      evidence_pointers:
+        - "Cost Explorer > RI Utilization = 0% (m5.xlarge 10대)"
+        - "EC2 콘솔 > c5.xlarge 5대 + r5.xlarge 5대 on-demand 실행 중"
+        - "RI 구매 이력: m5.xlarge × 10, 1yr All Upfront"
+        - "decoy m5.large 5대는 RI 100% 매칭 정상 적용"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["reserved-instance", "ri-mismatch", "instance-family", "rate-optimization", "on-demand"]
+
+  # ---------------------------------------------------------------------------
+  # L3-033: Savings Plan Coverage Gap
+  # ---------------------------------------------------------------------------
+  - id: "L3-033"
+    title: "Savings Plan Coverage Gap — 커버리지 60%, 워크로드 이동으로 미적용 증가"
+    category: "rate"
+    level: "L3"
+    aws_services: ["EC2", "Lambda", "Fargate", "Cost Explorer"]
+    description: |
+      Compute Savings Plan을 구매하여 운영 중이지만, 6개월간 워크로드 구성이
+      변화하면서 SP 커버리지가 60%까지 하락했다. 기존 EC2 위주 워크로드가
+      축소되고, Lambda와 Fargate 기반 서버리스 워크로드가 확장되면서
+      SP가 커버하지 못하는 on-demand 영역이 증가했다. 6개월치 SP Utilization
+      및 Coverage 리포트를 교차 분석하여 갭을 식별해야 한다.
+    detection_method: "Cost Explorer SP Coverage/Utilization 6개월 추이 분석 및 서비스별 on-demand 비중 분석"
+    resources:
+      problem:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.large"
+            pricing: "on-demand"
+            state: "running"
+          count: 5
+        - type: "aws_lambda_function"
+          config:
+            memory_mb: 512
+            avg_duration_ms: 200
+            monthly_invocations: 50000000
+            pricing: "on-demand"
+          count: 8
+        - type: "aws_ecs_service"
+          config:
+            launch_type: "FARGATE"
+            cpu: 1024
+            memory: 2048
+            desired_count: 4
+            pricing: "on-demand"
+          count: 3
+      decoy:
+        - type: "aws_instance"
+          config:
+            instance_type: "c5.large"
+            pricing: "savings-plan"
+            state: "running"
+          count: 6
+        - type: "aws_lambda_function"
+          config:
+            memory_mb: 256
+            avg_duration_ms: 100
+            monthly_invocations: 10000000
+            pricing: "savings-plan"
+          count: 4
+    metrics_profile:
+      problem_resources:
+        sp_covered_usage:
+          type: "constant"
+          value: 60
+          unit: "percent"
+          note: "전체 compute 비용 중 SP 적용 비율"
+        on_demand_spend:
+          type: "normal"
+          mean: 3000
+          std: 200
+          unit: "usd_per_month"
+          note: "SP 미적용 on-demand 월 지출"
+        sp_coverage_trend_6m:
+          type: "decreasing_linear"
+          start: 85
+          end: 60
+          unit: "percent"
+          note: "6개월간 커버리지 85% -> 60% 하락 추세"
+      decoy_resources:
+        sp_utilization:
+          type: "constant"
+          value: 95
+          unit: "percent"
+          note: "기존 SP는 거의 완전히 활용되고 있음"
+        sp_coverage:
+          type: "constant"
+          value: 100
+          unit: "percent"
+    cost_profile:
+      monthly_waste_usd: 1200
+      services_affected: ["EC2", "Lambda", "Fargate"]
+      pricing_note: "총 compute 비용 약 $7,500/mo 중 40%($3,000)가 on-demand. SP 추가 구매 시 20-30% 할인 적용 가능하여 월 $360~$900 절감 가능. $1,200는 on-demand 초과 지출분."
+    answer:
+      severity: "high"
+      problem_summary: "Compute Savings Plan 커버리지가 60%로 하락하여, 월 $3,000의 compute 비용이 on-demand로 과금되고 있다. 6개월간 EC2 워크로드 축소 및 Lambda/Fargate 확장으로 SP 미적용 영역이 증가했다."
+      recommendation: "1) 현재 on-demand 비용 $3,000에 대해 추가 Compute Savings Plan 구매 검토 (20-30% 절감 가능). 2) 서비스별(EC2, Lambda, Fargate) on-demand 비중 분석 후 최적 SP 규모 산정. 3) 워크로드 변동 추세를 고려하여 1년 No Upfront SP로 리스크 최소화. 4) SP Coverage 알림 임계값(80%) 설정."
+      savings_estimate_monthly_usd: 360
+      evidence_pointers:
+        - "Cost Explorer > Savings Plans > Coverage = 60%"
+        - "Cost Explorer > Savings Plans > Utilization = 95% (기존 SP 완전 사용)"
+        - "6개월 추이: SP Coverage 85% → 60% 지속 하락"
+        - "On-demand 비용 $3,000/mo (EC2 + Lambda + Fargate)"
+        - "decoy 리소스: SP 적용 정상, coverage 100%"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["savings-plan", "coverage-gap", "serverless", "rate-optimization", "multi-service"]
+
+  # ---------------------------------------------------------------------------
+  # L3-034: 멀티 계정 미통합 — Organizations 없이 개별 구매
+  # ---------------------------------------------------------------------------
+  - id: "L3-034"
+    title: "멀티 계정 미통합 — 10개 계정 RI/SP 개별 구매, 통합 할인 미적용"
+    category: "rate"
+    level: "L3"
+    aws_services: ["Organizations", "Cost Explorer"]
+    description: |
+      10개의 AWS 계정이 AWS Organizations 없이 독립적으로 운영되고 있다.
+      각 계정이 소규모 RI/SP를 개별 구매하여 볼륨 디스카운트를 받지 못하고,
+      계정 간 RI/SP 공유가 불가능한 상태이다. Consolidated Billing을 통해
+      통합할 경우 RI/SP 풀링, 볼륨 티어 할인, Enterprise Discount Program
+      적용이 가능하여 20-30% 추가 절감이 예상된다.
+    detection_method: "각 계정별 비용 및 RI/SP 구매 현황 취합 후, Organizations 통합 시 시뮬레이션 비교"
+    resources:
+      problem:
+        - type: "aws_account"
+          config:
+            account_alias: "team-alpha"
+            monthly_spend_usd: 1800
+            ri_coverage_percent: 25
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "team-beta"
+            monthly_spend_usd: 2200
+            ri_coverage_percent: 30
+            sp_coverage_percent: 10
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "team-gamma"
+            monthly_spend_usd: 1500
+            ri_coverage_percent: 20
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "team-delta"
+            monthly_spend_usd: 1200
+            ri_coverage_percent: 0
+            sp_coverage_percent: 15
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "team-epsilon"
+            monthly_spend_usd: 1600
+            ri_coverage_percent: 10
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "dev-sandbox-1"
+            monthly_spend_usd: 800
+            ri_coverage_percent: 0
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "dev-sandbox-2"
+            monthly_spend_usd: 900
+            ri_coverage_percent: 0
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "staging"
+            monthly_spend_usd: 2000
+            ri_coverage_percent: 15
+            sp_coverage_percent: 5
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "analytics"
+            monthly_spend_usd: 1700
+            ri_coverage_percent: 20
+            sp_coverage_percent: 0
+            consolidated_billing: false
+          count: 1
+        - type: "aws_account"
+          config:
+            account_alias: "ml-platform"
+            monthly_spend_usd: 1300
+            ri_coverage_percent: 0
+            sp_coverage_percent: 10
+            consolidated_billing: false
+          count: 1
+      decoy:
+        - type: "aws_organization"
+          config:
+            consolidated_billing: true
+            account_count: 10
+            total_monthly_spend_usd: 15000
+            combined_ri_coverage_percent: 65
+            combined_sp_coverage_percent: 20
+            volume_discount_tier: "enterprise"
+            estimated_savings_percent: 20
+          count: 1
+    metrics_profile:
+      problem_resources:
+        per_account_spend:
+          type: "varying_constant"
+          values: [1800, 2200, 1500, 1200, 1600, 800, 900, 2000, 1700, 1300]
+          unit: "usd_per_month"
+          labels: ["alpha", "beta", "gamma", "delta", "epsilon", "sandbox-1", "sandbox-2", "staging", "analytics", "ml-platform"]
+        total_monthly_spend:
+          type: "constant"
+          value: 15000
+          unit: "usd_per_month"
+        avg_ri_coverage:
+          type: "constant"
+          value: 12
+          unit: "percent"
+          note: "10개 계정 평균 RI 커버리지 — 소규모 개별 구매로 낮음"
+        avg_sp_coverage:
+          type: "constant"
+          value: 4
+          unit: "percent"
+          note: "대부분 계정에서 SP 미구매"
+      decoy_resources:
+        consolidated_view:
+          type: "constant"
+          value: 15000
+          unit: "usd_per_month"
+          note: "통합 시 동일 총액 대비 RI/SP 풀링으로 커버리지 대폭 상승"
+        projected_ri_coverage:
+          type: "constant"
+          value: 65
+          unit: "percent"
+        projected_savings:
+          type: "constant"
+          value: 3000
+          unit: "usd_per_month"
+    cost_profile:
+      monthly_waste_usd: 3000
+      services_affected: ["EC2", "RDS", "S3", "Lambda"]
+      pricing_note: "10개 계정 총 $15,000/mo. 개별 RI/SP 커버리지 평균 16%로 매우 낮음. Organizations 통합 시 RI/SP 풀링 + 볼륨 할인으로 20% 절감($3,000/mo) 가능."
+    answer:
+      severity: "critical"
+      problem_summary: "10개 AWS 계정이 Organizations 통합 없이 독립 운영되어, RI/SP를 소규모로 개별 구매하고 있다. 평균 커버리지 16%에 불과하며, 계정 간 RI/SP 공유 불가로 월 $3,000의 절감 기회를 놓치고 있다."
+      recommendation: "1) AWS Organizations 구성 및 Consolidated Billing 활성화. 2) 계정 간 RI/SP 공유 설정 활성화. 3) 전체 $15,000/mo 기준으로 Compute Savings Plan 통합 구매 (65% 커버리지 목표). 4) Enterprise Discount Program(EDP) 협상 검토. 5) 계정별 태그 기반 비용 할당으로 부서별 차지백 체계 구축."
+      savings_estimate_monthly_usd: 3000
+      evidence_pointers:
+        - "10개 개별 계정, Organizations 미구성"
+        - "계정별 RI 커버리지: 0~30%, 평균 12%"
+        - "계정별 SP 커버리지: 0~15%, 평균 4%"
+        - "총 월 비용 $15,000 — 통합 시 $3,000/mo (20%) 절감 시뮬레이션"
+        - "dev-sandbox 2개 계정: RI/SP 전무, 100% on-demand"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags: ["multi-account", "organizations", "consolidated-billing", "ri-pooling", "savings-plan", "rate-optimization"]

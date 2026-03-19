@@ -1,0 +1,152 @@
+{# ──────────────────────────────────────────────────────────────────────────
+   Container resource templates: aws_ecs_service (Fargate-specific),
+   aws_eks_node_group
+   ────────────────────────────────────────────────────────────────────────── #}
+
+{% macro aws_ecs_service(r) %}
+resource "aws_ecs_service" "{{ r.resource_name }}" {
+  name            = "{{ r.resource_name }}"
+  cluster         = aws_ecs_cluster.{{ r.config.cluster_name | default('main') }}.id
+  task_definition = aws_ecs_task_definition.{{ r.resource_name }}.arn
+  desired_count   = {{ r.config.desired_count | default(2) }}
+  launch_type     = "FARGATE"
+  platform_version = "{{ r.config.platform_version | default('LATEST') }}"
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [aws_security_group.{{ r.resource_name }}_sg.id]
+    assign_public_ip = false
+  }
+
+  {% if r.config.pricing is defined %}
+  # Pricing model: {{ r.config.pricing }}
+  {% endif %}
+
+  {% if r.config.desired_count is defined and r.config.desired_count > 3 %}
+  # {{ r.config.desired_count }} tasks running — verify utilization justifies this count
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+
+resource "aws_ecs_task_definition" "{{ r.resource_name }}" {
+  family                   = "{{ r.resource_name }}"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "{{ r.config.cpu | default(256) }}"
+  memory                   = "{{ r.config.memory | default(512) }}"
+  execution_role_arn       = aws_iam_role.{{ r.resource_name }}_execution_role.arn
+  task_role_arn            = aws_iam_role.{{ r.resource_name }}_task_role.arn
+
+  {% if r.config.cpu is defined and r.config.memory is defined %}
+  # Fargate pricing: vCPU=$0.04048/hr + Memory=$0.004445/GB/hr
+  # Task config: {{ (r.config.cpu / 1024) | round(2) }} vCPU / {{ (r.config.memory / 1024) | round(2) }} GB
+  # Per-task hourly cost: ~${{ ((r.config.cpu / 1024 * 0.04048) + (r.config.memory / 1024 * 0.004445)) | round(4) }}/hr
+  {% if r.config.desired_count is defined %}
+  # Total hourly cost ({{ r.config.desired_count }} tasks): ~${{ ((r.config.cpu / 1024 * 0.04048) + (r.config.memory / 1024 * 0.004445)) * r.config.desired_count | round(4) }}/hr
+  {% endif %}
+  {% endif %}
+
+  {% if r.config.cpu is defined and r.config.cpu >= 4096 %}
+  # WARNING: Task allocated {{ r.config.cpu }} CPU units ({{ (r.config.cpu / 1024) | round(1) }} vCPU)
+  # Verify CloudWatch ECS CPUUtilization to confirm this allocation is justified
+  {% endif %}
+
+  container_definitions = jsonencode([
+    {
+      name      = "{{ r.resource_name }}-app"
+      image     = "{{ r.config.image | default('nginx:latest') }}"
+      cpu       = {{ r.config.cpu | default(256) }}
+      memory    = {{ r.config.memory | default(512) }}
+      essential = true
+      portMappings = [
+        {
+          containerPort = {{ r.config.container_port | default(80) }}
+          protocol      = "tcp"
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/{{ r.resource_name }}"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_eks_node_group(r) %}
+resource "aws_eks_node_group" "{{ r.resource_name }}" {
+  cluster_name    = aws_eks_cluster.{{ r.config.cluster_name | default('main') }}.name
+  node_group_name = "{{ r.resource_name }}"
+  node_role_arn   = aws_iam_role.{{ r.resource_name }}_node_role.arn
+  subnet_ids      = var.private_subnet_ids
+
+  instance_types = ["{{ r.config.instance_type | default('m5.large') }}"]
+  ami_type       = "{{ r.config.ami_type | default('AL2_x86_64') }}"
+  capacity_type  = "{{ r.config.capacity_type | default('ON_DEMAND') }}"
+  disk_size      = {{ r.config.disk_size_gb | default(50) }}
+
+  scaling_config {
+    min_size     = {{ r.config.min_size | default(1) }}
+    max_size     = {{ r.config.max_size | default(r.config.desired_size | default(3)) }}
+    desired_size = {{ r.config.desired_size | default(2) }}
+  }
+
+  {% if r.config.vcpu is defined and r.config.memory_gb is defined %}
+  # Node specs: {{ r.config.vcpu }} vCPU / {{ r.config.memory_gb }} GB RAM
+  {% endif %}
+
+  {% if r.config.role is defined %}
+  # Node role: {{ r.config.role }}
+  {% endif %}
+
+  {% if r.config.pods_per_node is defined %}
+  # Pods per node: {{ r.config.pods_per_node }}
+  {% endif %}
+
+  {% if r.config.desired_size is defined and r.config.desired_size > 10 %}
+  # WARNING: {{ r.config.desired_size }} nodes in this group — validate pod scheduling density
+  # If pods_per_node is low, CPU requests may be over-provisioned
+  {% endif %}
+
+  update_config {
+    max_unavailable = {{ r.config.max_unavailable | default(1) }}
+  }
+
+  {% if r.config.labels is defined %}
+  labels = {
+    {% for key, value in r.config.labels.items() %}
+    "{{ key }}" = "{{ value }}"
+    {% endfor %}
+  }
+  {% endif %}
+
+  {% if r.config.taints is defined %}
+  {% for taint in r.config.taints %}
+  taint {
+    key    = "{{ taint.key }}"
+    value  = "{{ taint.value | default('') }}"
+    effect = "{{ taint.effect | default('NO_SCHEDULE') }}"
+  }
+  {% endfor %}
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+    {% if r.config.role is defined %}
+    Role = "{{ r.config.role }}"
+    {% endif %}
+  }
+}
+{% endmacro %}

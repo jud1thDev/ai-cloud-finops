@@ -1,0 +1,85 @@
+name: "답안 제출"
+description: "FinOps 문제 답안을 제출합니다"
+title: "[Week {{ week }}] {{ scenario_id }} 답안 제출"
+labels: ["submission"]
+body:
+  - type: input
+    id: week
+    attributes:
+      label: Week
+      description: "주차 번호 (숫자만)"
+      placeholder: "1"
+    validations:
+      required: true
+
+  - type: input
+    id: scenario_id
+    attributes:
+      label: Scenario ID
+      description: "시나리오 ID (예: L1-003)"
+      placeholder: "L1-003"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem_identification
+    attributes:
+      label: Problem Identification
+      description: "어떤 비용 문제를 발견했나요?"
+      placeholder: |
+        - 발견한 비용 낭비 문제를 설명하세요
+        - 어떤 리소스에서 문제를 발견했는지 명시하세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: Root Cause
+      description: "문제의 근본 원인은 무엇인가요?"
+      placeholder: |
+        - 왜 이 비용 낭비가 발생했는지 분석하세요
+        - 메트릭이나 비용 리포트에서 찾은 근거를 포함하세요
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: "어떻게 해결할 수 있나요?"
+      placeholder: |
+        - 구체적인 해결 방안을 제안하세요
+        - 실행 가능한 단계를 포함하세요
+    validations:
+      required: true
+
+  - type: input
+    id: estimated_savings_usd
+    attributes:
+      label: "Estimated Monthly Savings (USD)"
+      description: "예상 월간 절감액 (숫자만)"
+      placeholder: "150"
+    validations:
+      required: true
+
+  - type: textarea
+    id: optimized_terraform
+    attributes:
+      label: "Optimized Terraform"
+      description: "비용 최적화를 적용한 Terraform 코드 (선택)"
+      render: hcl
+      placeholder: |
+        resource "aws_instance" "optimized" {
+          instance_type = "t3.medium"  # downsized
+        }
+    validations:
+      required: false
+
+  - type: textarea
+    id: attached_reports
+    attributes:
+      label: "Attached Reports"
+      description: "첨부한 리포트 파일명 (submissions/ 디렉토리에 업로드됨)"
+    validations:
+      required: false

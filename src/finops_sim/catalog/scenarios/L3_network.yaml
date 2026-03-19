@@ -1,0 +1,586 @@
+scenarios:
+  # --------------------------------------------------------------------------
+  # L3-025: NAT Gateway Single-AZ 배치
+  # --------------------------------------------------------------------------
+  - id: "L3-025"
+    title: "NAT Gateway Single-AZ 배치로 인한 Cross-AZ 이중 과금"
+    category: "network"
+    level: "L3"
+    aws_services:
+      - "VPC"
+      - "NAT Gateway"
+    description: |
+      3개 가용영역(AZ)에 걸친 Private Subnet 아키텍처에서 NAT Gateway가
+      AZ-a 한 곳에만 배치되어 있다. AZ-b, AZ-c의 트래픽이 AZ-a로 라우팅되면서
+      Cross-AZ 데이터 전송 요금($0.01/GB)이 NAT 처리 요금($0.045/GB) 위에
+      이중으로 발생한다. 또한 단일 AZ 장애 시 전체 아웃바운드 통신이 중단되는
+      가용성 리스크가 존재한다.
+    detection_method: "cross_az_traffic_analysis"
+    resources:
+      problem:
+        - type: "aws_nat_gateway"
+          config:
+            availability_zone: "ap-northeast-2a"
+            monthly_data_gb: 5000
+            subnet_type: "public"
+          count: 1
+        - type: "aws_subnet"
+          config:
+            subnet_type: "private"
+            availability_zones:
+              - "ap-northeast-2a"
+              - "ap-northeast-2b"
+              - "ap-northeast-2c"
+          count: 3
+        - type: "aws_route_table"
+          config:
+            routes:
+              - destination: "0.0.0.0/0"
+                target: "nat-gateway-az-a"
+            associated_subnets: "all_private"
+          count: 3
+      decoy:
+        - type: "aws_nat_gateway"
+          config:
+            availability_zone_distribution: "one_per_az"
+            monthly_data_gb_per_gw: 1667
+            subnet_type: "public"
+          count: 3
+        - type: "aws_subnet"
+          config:
+            subnet_type: "private"
+            availability_zones:
+              - "ap-northeast-2a"
+              - "ap-northeast-2b"
+              - "ap-northeast-2c"
+          count: 3
+        - type: "aws_route_table"
+          config:
+            routes:
+              - destination: "0.0.0.0/0"
+                target: "nat-gateway-same-az"
+            associated_subnets: "same_az_private"
+          count: 3
+    metrics_profile:
+      problem_resources:
+        bytes_out_mb_per_hr:
+          type: "normal"
+          mean: 7000
+          std: 1000
+        cross_az_bytes_mb_per_hr:
+          type: "normal"
+          mean: 4700
+          std: 800
+        active_connection_count:
+          type: "normal"
+          mean: 12000
+          std: 3000
+      decoy_resources:
+        bytes_out_mb_per_hr:
+          type: "normal"
+          mean: 2400
+          std: 400
+        cross_az_bytes_mb_per_hr:
+          type: "constant"
+          value: 0
+        active_connection_count:
+          type: "normal"
+          mean: 4000
+          std: 1000
+    cost_profile:
+      monthly_waste_usd: 66
+      services_affected:
+        - "VPC"
+        - "NAT Gateway"
+      pricing_note: >-
+        전체 5TB 중 2/3(≈3.33TB)가 Cross-AZ 경유. 양방향 과금으로
+        3,333GB x $0.01 x 2 = $66/월 추가 비용. 단일 AZ 장애 시
+        가용성 리스크는 별도.
+    answer:
+      severity: "medium"
+      problem_summary: >-
+        NAT Gateway가 AZ-a에만 배치되어 AZ-b, AZ-c 트래픽이 Cross-AZ
+        경유하며 이중 과금 발생. 가용성 리스크도 존재.
+      recommendation: >-
+        각 AZ별로 NAT Gateway를 배치하고, Route Table을 AZ별로 분리하여
+        같은 AZ의 NAT Gateway를 사용하도록 구성한다.
+      savings_estimate_monthly_usd: 66
+      evidence_pointers:
+        - "NAT Gateway가 ap-northeast-2a에만 1개 존재"
+        - "3개 AZ의 Route Table이 모두 동일 NAT Gateway를 가리킴"
+        - "Cross-AZ 데이터 전송량이 전체 NAT 트래픽의 66%"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "network"
+      - "nat-gateway"
+      - "cross-az"
+      - "high-availability"
+      - "multi-az"
+
+  # --------------------------------------------------------------------------
+  # L3-026: Transit Gateway 불필요 경유
+  # --------------------------------------------------------------------------
+  - id: "L3-026"
+    title: "단순 VPC 간 통신에 Transit Gateway 불필요 경유"
+    category: "network"
+    level: "L3"
+    aws_services:
+      - "VPC"
+      - "Transit Gateway"
+    description: |
+      2개 VPC 간 직접 통신만 필요한 구조에서 Transit Gateway를 경유하고 있다.
+      VPC Peering은 데이터 전송 요금이 무료(같은 AZ)이거나 $0.01/GB(Cross-AZ)인
+      반면, Transit Gateway는 처리 데이터에 대해 $0.02/GB를 부과한다.
+      단순 1:1 통신에 Transit Gateway는 과잉 아키텍처이다.
+    detection_method: "transit_gateway_attachment_analysis"
+    resources:
+      problem:
+        - type: "aws_ec2_transit_gateway"
+          config:
+            attachments: 2
+            monthly_data_processed_gb: 10000
+            routing: "full_mesh"
+          count: 1
+        - type: "aws_ec2_transit_gateway_vpc_attachment"
+          config:
+            vpc_count: 2
+          count: 2
+      decoy:
+        - type: "aws_vpc_peering_connection"
+          config:
+            vpc_pair: "vpc-a <-> vpc-b"
+            monthly_data_gb: 10000
+            same_region: true
+          count: 1
+    metrics_profile:
+      problem_resources:
+        bytes_processed_mb_per_hr:
+          type: "normal"
+          mean: 14000
+          std: 2000
+        packet_count_per_hr:
+          type: "normal"
+          mean: 8000000
+          std: 1500000
+      decoy_resources:
+        bytes_transferred_mb_per_hr:
+          type: "normal"
+          mean: 14000
+          std: 2000
+        packet_count_per_hr:
+          type: "normal"
+          mean: 8000000
+          std: 1500000
+    cost_profile:
+      monthly_waste_usd: 200
+      services_affected:
+        - "VPC"
+        - "Transit Gateway"
+      pricing_note: >-
+        Transit Gateway 데이터 처리: 10TB x $0.02/GB = $200/월.
+        VPC Peering으로 전환 시 같은 AZ 내 전송은 무료.
+    answer:
+      severity: "medium"
+      problem_summary: >-
+        2개 VPC 간 단순 통신에 Transit Gateway를 사용하여 $0.02/GB 처리
+        비용이 불필요하게 발생. VPC Peering으로 대체 가능.
+      recommendation: >-
+        Transit Gateway를 제거하고 VPC Peering Connection으로 전환한다.
+        VPC 수가 적고 1:1 통신만 필요한 경우 Peering이 비용 효율적이다.
+      savings_estimate_monthly_usd: 200
+      evidence_pointers:
+        - "Transit Gateway에 VPC Attachment가 2개뿐"
+        - "월 10TB 데이터가 TGW를 경유하며 $0.02/GB 과금"
+        - "VPC 간 라우팅이 단순 1:1 구조"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "network"
+      - "transit-gateway"
+      - "vpc-peering"
+      - "over-architecture"
+
+  # --------------------------------------------------------------------------
+  # L3-027: PrivateLink Interface Endpoint 남발
+  # --------------------------------------------------------------------------
+  - id: "L3-027"
+    title: "S3/DynamoDB에 Gateway Endpoint 대신 Interface Endpoint 사용"
+    category: "network"
+    level: "L3"
+    aws_services:
+      - "VPC"
+      - "S3"
+      - "DynamoDB"
+    description: |
+      S3와 DynamoDB는 무료 Gateway Endpoint를 지원하지만, Interface Endpoint
+      (PrivateLink)로 생성되어 있다. Interface Endpoint는 AZ당 $0.01/시간 +
+      $0.01/GB 데이터 처리 비용이 발생한다. 3개 AZ에 걸쳐 배포된 2개의
+      Interface Endpoint가 불필요한 비용을 발생시키고 있다.
+    detection_method: "vpc_endpoint_type_analysis"
+    resources:
+      problem:
+        - type: "aws_vpc_endpoint"
+          config:
+            endpoint_type: "Interface"
+            service: "com.amazonaws.ap-northeast-2.s3"
+            availability_zones: 3
+            monthly_data_gb: 3000
+          count: 1
+        - type: "aws_vpc_endpoint"
+          config:
+            endpoint_type: "Interface"
+            service: "com.amazonaws.ap-northeast-2.dynamodb"
+            availability_zones: 3
+            monthly_data_gb: 1000
+          count: 1
+      decoy:
+        - type: "aws_vpc_endpoint"
+          config:
+            endpoint_type: "Gateway"
+            service: "com.amazonaws.ap-northeast-2.sqs"
+          count: 1
+        - type: "aws_vpc_endpoint"
+          config:
+            endpoint_type: "Gateway"
+            service: "com.amazonaws.ap-northeast-2.sns"
+          count: 1
+    metrics_profile:
+      problem_resources:
+        bytes_processed_mb_per_hr:
+          type: "normal"
+          mean: 5000
+          std: 1000
+        active_connections:
+          type: "normal"
+          mean: 500
+          std: 100
+      decoy_resources:
+        bytes_processed_mb_per_hr:
+          type: "normal"
+          mean: 5000
+          std: 1000
+        active_connections:
+          type: "normal"
+          mean: 500
+          std: 100
+    cost_profile:
+      monthly_waste_usd: 144
+      services_affected:
+        - "VPC"
+        - "S3"
+        - "DynamoDB"
+      pricing_note: >-
+        Interface Endpoint 시간당 비용: 2 endpoints x 3 AZs x $0.01/hr x 730hr
+        = $43.80. 데이터 처리 비용: 4,000GB x $0.01/GB = $40.
+        총 약 $84/월이지만 데이터 변동 포함 시 약 $144/월.
+        Gateway Endpoint는 완전 무료.
+    answer:
+      severity: "medium"
+      problem_summary: >-
+        S3와 DynamoDB 접근에 유료 Interface Endpoint(PrivateLink)를 사용 중.
+        무료 Gateway Endpoint로 전환 가능.
+      recommendation: >-
+        S3와 DynamoDB용 Interface Endpoint를 삭제하고 Gateway Endpoint를
+        생성한다. Route Table에 Gateway Endpoint 경로를 추가하면
+        동일한 Private 접근이 무료로 가능하다.
+      savings_estimate_monthly_usd: 144
+      evidence_pointers:
+        - "S3용 Interface Endpoint가 3개 AZ에 배포"
+        - "DynamoDB용 Interface Endpoint가 3개 AZ에 배포"
+        - "Gateway Endpoint 미사용 — 무료 대안 존재"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "network"
+      - "vpc-endpoint"
+      - "privatelink"
+      - "gateway-endpoint"
+      - "s3"
+      - "dynamodb"
+
+  # --------------------------------------------------------------------------
+  # L3-028: NLB Cross-Zone Load Balancing 활성화
+  # --------------------------------------------------------------------------
+  - id: "L3-028"
+    title: "NLB Cross-Zone Load Balancing 활성화로 인한 고비용 전송"
+    category: "network"
+    level: "L3"
+    aws_services:
+      - "ELB"
+      - "VPC"
+    description: |
+      Network Load Balancer(NLB)에 Cross-Zone Load Balancing이 활성화되어 있다.
+      ALB와 달리 NLB는 Cross-Zone 트래픽에 $0.01/GB를 부과한다.
+      고트래픽 환경에서 2개의 NLB가 각각 월 20TB를 처리하고 있어
+      Cross-Zone 전송 비용만으로 상당한 금액이 발생한다.
+    detection_method: "nlb_cross_zone_traffic_analysis"
+    resources:
+      problem:
+        - type: "aws_lb"
+          config:
+            load_balancer_type: "network"
+            cross_zone_enabled: true
+            availability_zones: 3
+            monthly_data_gb: 20000
+          count: 2
+      decoy:
+        - type: "aws_lb"
+          config:
+            load_balancer_type: "application"
+            cross_zone_enabled: true
+            availability_zones: 3
+            monthly_data_gb: 20000
+          count: 1
+    metrics_profile:
+      problem_resources:
+        processed_bytes_mb_per_hr:
+          type: "normal"
+          mean: 28000
+          std: 5000
+        cross_zone_bytes_mb_per_hr:
+          type: "normal"
+          mean: 18000
+          std: 3000
+        active_flow_count:
+          type: "normal"
+          mean: 50000
+          std: 10000
+      decoy_resources:
+        processed_bytes_mb_per_hr:
+          type: "normal"
+          mean: 28000
+          std: 5000
+        cross_zone_bytes_mb_per_hr:
+          type: "normal"
+          mean: 18000
+          std: 3000
+        active_flow_count:
+          type: "normal"
+          mean: 50000
+          std: 10000
+    cost_profile:
+      monthly_waste_usd: 400
+      services_affected:
+        - "ELB"
+        - "VPC"
+      pricing_note: >-
+        NLB Cross-Zone 데이터 전송: 2 NLB x 20TB x $0.01/GB = $400/월.
+        ALB는 Cross-Zone Load Balancing이 무료이므로 decoy에서는 비용 미발생.
+    answer:
+      severity: "high"
+      problem_summary: >-
+        2개 NLB에서 Cross-Zone Load Balancing이 활성화되어 월 40TB의
+        Cross-Zone 전송에 대해 $0.01/GB 과금 발생.
+      recommendation: >-
+        타겟 그룹의 AZ별 인스턴스 분포가 균등하다면 Cross-Zone Load Balancing을
+        비활성화한다. 불균등 분포가 필요한 경우 ALB 전환을 검토하거나,
+        AZ별 타겟 비율을 조정하여 Cross-Zone 트래픽을 최소화한다.
+      savings_estimate_monthly_usd: 400
+      evidence_pointers:
+        - "2개 NLB에 cross_zone_enabled=true 설정"
+        - "NLB당 월 20TB 처리, Cross-Zone 비율 높음"
+        - "ALB는 동일 설정에서 Cross-Zone 비용 무료"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "network"
+      - "nlb"
+      - "cross-zone"
+      - "load-balancer"
+      - "high-traffic"
+
+  # --------------------------------------------------------------------------
+  # L3-029: S3 데이터를 NAT 경유 접근
+  # --------------------------------------------------------------------------
+  - id: "L3-029"
+    title: "S3 트래픽이 NAT Gateway를 경유하여 불필요한 처리 비용 발생"
+    category: "network"
+    level: "L3"
+    aws_services:
+      - "VPC"
+      - "S3"
+      - "NAT Gateway"
+    description: |
+      Private Subnet의 EC2 인스턴스가 S3에 접근할 때 NAT Gateway를 경유하여
+      인터넷으로 나간 뒤 S3에 도달한다. S3 Gateway Endpoint를 설정하면
+      NAT Gateway를 거치지 않고 AWS 내부 네트워크로 무료 접근이 가능하지만,
+      현재 Gateway Endpoint가 미설정 상태이다.
+    detection_method: "nat_gateway_s3_traffic_analysis"
+    resources:
+      problem:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.xlarge"
+            subnet_type: "private"
+            s3_access_pattern: "via_nat_gateway"
+            monthly_s3_traffic_gb: 1600
+          count: 5
+        - type: "aws_nat_gateway"
+          config:
+            monthly_data_gb: 8000
+            s3_traffic_ratio: 1.0
+          count: 1
+      decoy:
+        - type: "aws_instance"
+          config:
+            instance_type: "m5.xlarge"
+            subnet_type: "private"
+            s3_access_pattern: "via_gateway_endpoint"
+            monthly_s3_traffic_gb: 1600
+          count: 2
+        - type: "aws_vpc_endpoint"
+          config:
+            endpoint_type: "Gateway"
+            service: "com.amazonaws.ap-northeast-2.s3"
+          count: 1
+    metrics_profile:
+      problem_resources:
+        nat_bytes_out_mb_per_hr:
+          type: "normal"
+          mean: 11000
+          std: 2000
+        s3_request_count_per_hr:
+          type: "normal"
+          mean: 50000
+          std: 10000
+      decoy_resources:
+        s3_direct_bytes_mb_per_hr:
+          type: "normal"
+          mean: 4400
+          std: 800
+        s3_request_count_per_hr:
+          type: "normal"
+          mean: 20000
+          std: 4000
+    cost_profile:
+      monthly_waste_usd: 360
+      services_affected:
+        - "VPC"
+        - "S3"
+        - "NAT Gateway"
+      pricing_note: >-
+        NAT Gateway 처리 비용: 8TB x $0.045/GB = $360/월.
+        S3 Gateway Endpoint 사용 시 NAT 처리 비용 전액 절감.
+    answer:
+      severity: "high"
+      problem_summary: >-
+        S3 트래픽 8TB/월이 NAT Gateway를 경유하며 $0.045/GB 처리 비용이
+        불필요하게 발생. S3 Gateway Endpoint 미설정 상태.
+      recommendation: >-
+        VPC에 S3 Gateway Endpoint를 생성하고, Private Subnet의 Route Table에
+        S3 prefix list 경로를 추가한다. 이후 S3 트래픽은 AWS 내부 네트워크를
+        통해 무료로 전송된다.
+      savings_estimate_monthly_usd: 360
+      evidence_pointers:
+        - "VPC에 S3 Gateway Endpoint 미존재"
+        - "NAT Gateway 트래픽 로그에서 S3 IP 대역 다수 확인"
+        - "월 8TB S3 트래픽이 NAT Gateway를 경유"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "network"
+      - "s3"
+      - "nat-gateway"
+      - "gateway-endpoint"
+      - "data-transfer"
+
+  # --------------------------------------------------------------------------
+  # L3-030: VPN + Direct Connect 동시 유지
+  # --------------------------------------------------------------------------
+  - id: "L3-030"
+    title: "Direct Connect 전환 후 미삭제된 VPN Connection 유지 비용"
+    category: "unused"
+    level: "L3"
+    aws_services:
+      - "VPN"
+      - "Direct Connect"
+    description: |
+      Direct Connect(DX) 전용선이 개통된 이후에도 기존 Site-to-Site VPN
+      Connection 2개가 삭제되지 않고 활성 상태로 유지되고 있다.
+      실제 트래픽은 전부 DX를 통해 전송되고 있으며, VPN 터널의
+      데이터 전송량은 0이다. VPN은 connection-hour 기반으로 과금되어
+      사용하지 않아도 비용이 발생한다.
+    detection_method: "vpn_zero_traffic_detection"
+    resources:
+      problem:
+        - type: "aws_vpn_connection"
+          config:
+            state: "available"
+            tunnel_count: 2
+            monthly_data_in_gb: 0
+            monthly_data_out_gb: 0
+          count: 2
+      decoy:
+        - type: "aws_dx_connection"
+          config:
+            state: "available"
+            bandwidth: "1Gbps"
+            monthly_data_out_gb: 3650
+          count: 1
+    metrics_profile:
+      problem_resources:
+        tunnel_data_in_bytes:
+          type: "constant"
+          value: 0
+        tunnel_data_out_bytes:
+          type: "constant"
+          value: 0
+        tunnel_state:
+          type: "constant"
+          value: 1
+      decoy_resources:
+        dx_data_out_mb_per_hr:
+          type: "normal"
+          mean: 5000
+          std: 1000
+        connection_state:
+          type: "constant"
+          value: 1
+    cost_profile:
+      monthly_waste_usd: 73
+      services_affected:
+        - "VPN"
+        - "Direct Connect"
+      pricing_note: >-
+        VPN Connection 시간당 비용: 2 connections x $0.05/hr x 730hr = $73/월.
+        트래픽이 0임에도 connection-hour 과금 지속.
+    answer:
+      severity: "low"
+      problem_summary: >-
+        Direct Connect 전환 후 VPN Connection 2개가 미삭제 상태로 유지.
+        트래픽 0이지만 connection-hour 비용 $73/월 발생.
+      recommendation: >-
+        DX 안정성 확인 후 VPN Connection을 삭제한다. 재해복구(DR) 목적으로
+        VPN을 유지하려면 별도 문서화하고, 그렇지 않으면 즉시 제거한다.
+      savings_estimate_monthly_usd: 73
+      evidence_pointers:
+        - "2개 VPN Connection의 tunnel_data_in/out이 0"
+        - "Direct Connect가 전체 트래픽을 처리 중"
+        - "VPN Connection 상태는 available이나 실제 사용 없음"
+    scoring:
+      identify_problem: 30
+      identify_root_cause: 20
+      propose_solution: 30
+      estimate_savings: 20
+    tags:
+      - "unused"
+      - "vpn"
+      - "direct-connect"
+      - "connection-hour"
+      - "migration-leftover"

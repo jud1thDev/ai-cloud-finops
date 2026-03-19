@@ -1,0 +1,60 @@
+{
+  "analysis": {
+    "problems_found": [
+      {
+        "resource": "instance-prod-api-01",
+        "issue_type": "overprovisioned",
+        "severity": "high",
+        "evidence": [
+          "인스턴스 타입: r5.2xlarge (8 vCPU, 64GB RAM)",
+          "평균 CPU 사용률: 12% (30일간)",
+          "평균 메모리 사용률: 18%",
+          "피크 CPU: 35% — r5.large로 충분"
+        ],
+        "recommendation": "r5.2xlarge → r5.large로 다운사이즈 (비용 75% 절감)",
+        "estimated_savings": 280
+      },
+      {
+        "resource": "dynamodb-session-table",
+        "issue_type": "overprovisioned",
+        "severity": "medium",
+        "evidence": [
+          "프로비저닝된 WCU: 5000",
+          "실제 사용 WCU 피크: 800 (16%)",
+          "On-Demand 전환 시 비용 절감 가능"
+        ],
+        "recommendation": "On-Demand 모드로 전환하거나 Auto Scaling 적용",
+        "estimated_savings": 120
+      }
+    ],
+    "unit_economics": {
+      "cost_per_1k_requests": 2.34,
+      "cost_per_order": 0.85,
+      "trend": "degrading",
+      "vs_previous_period": 15.3
+    }
+  },
+  "recommendations": [
+    {
+      "action": "resize",
+      "target": "instance-prod-api-01",
+      "detail": "r5.2xlarge에서 r5.large로 다운사이징. 피크 시 35% CPU이므로 r5.large(2 vCPU)에서 70%로 충분히 수용 가능.",
+      "priority": "high",
+      "estimated_savings": 280,
+      "risk": "medium"
+    },
+    {
+      "action": "switch_billing_mode",
+      "target": "dynamodb-session-table",
+      "detail": "DynamoDB를 Provisioned에서 On-Demand로 전환. 현재 사용률 16%로 On-Demand가 경제적.",
+      "priority": "medium",
+      "estimated_savings": 120,
+      "risk": "low"
+    }
+  ],
+  "summary": {
+    "total_issues_found": 2,
+    "total_monthly_savings_usd": 400,
+    "confidence_score": 78
+  }
+}

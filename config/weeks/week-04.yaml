@@ -1,0 +1,19 @@
+# Week 04 설정
+week: 4
+level: "L2"
+num_problems: 3
+category: null
+reveal_date: "2026-04-14"
+description: "단위경제 분석 - 비용 효율성 지표 도입"
+generators:
+  - tf
+  - metrics
+  - cost_report
+  - business_metrics
+scoring_weights:
+  schema: 1.0
+  resource: 1.0
+  savings: 1.0
+  terraform: 1.0
+  economics: 1.0
+  alerts: 0.0

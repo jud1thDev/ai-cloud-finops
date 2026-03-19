@@ -1,0 +1,18 @@
+# Week 03 설정
+week: 3
+level: "L1"
+num_problems: 3
+category: null
+reveal_date: "2026-04-07"
+description: "FinOps 기초 - 종합 낭비 리소스 식별"
+generators:
+  - tf
+  - metrics
+  - cost_report
+scoring_weights:
+  schema: 1.0
+  resource: 1.0
+  savings: 1.0
+  terraform: 1.0
+  economics: 0.0
+  alerts: 0.0

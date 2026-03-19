@@ -1,0 +1,237 @@
+{# ──────────────────────────────────────────────────────────────────────────
+   Compute resource templates: aws_instance, aws_lambda_function,
+   aws_ecs_service, aws_autoscaling_group, aws_eks_cluster
+   ────────────────────────────────────────────────────────────────────────── #}
+
+{% macro aws_instance(r) %}
+resource "aws_instance" "{{ r.resource_name }}" {
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "{{ r.config.instance_type | default('t3.medium') }}"
+  subnet_id     = aws_subnet.{{ r.config.subnet_id | default('main') }}.id
+
+  {% if r.config.state is defined and r.config.state == 'stopped' %}
+  # Instance is currently STOPPED ({{ r.config.stopped_days | default(0) }} days ago)
+  # EBS volumes remain attached and continue to incur charges
+  {% endif %}
+
+  {% if r.config.pricing is defined %}
+  # Pricing model: {{ r.config.pricing }}
+  {% endif %}
+
+  {% if r.config.role is defined %}
+  # Role: {{ r.config.role }}
+  {% endif %}
+
+  root_block_device {
+    volume_type           = "{{ r.config.root_volume_type | default('gp3') }}"
+    volume_size           = {{ r.config.root_volume_size_gb | default(20) }}
+    delete_on_termination = true
+  }
+
+  tags = {
+    Name        = "{{ r.resource_name }}"
+    {% if r.config.environment is defined %}
+    Environment = "{{ r.config.environment }}"
+    {% endif %}
+    {% if r.config.tags is defined %}
+    {% for key, value in r.config.tags.items() %}
+    {{ key }} = "{{ value }}"
+    {% endfor %}
+    {% endif %}
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_lambda_function(r) %}
+resource "aws_lambda_function" "{{ r.resource_name }}" {
+  function_name = "{{ r.resource_name }}"
+  role          = aws_iam_role.{{ r.resource_name }}_role.arn
+  handler       = "{{ r.config.handler | default('index.handler') }}"
+  runtime       = "{{ r.config.runtime | default('python3.11') }}"
+
+  memory_size = {{ r.config.memory_size | default(128) }}
+  timeout     = {{ r.config.timeout | default(30) }}
+
+  {% if r.config.memory_size is defined and r.config.memory_size > 1024 %}
+  # WARNING: Memory allocation {{ r.config.memory_size }}MB — verify actual usage via CloudWatch
+  {% endif %}
+
+  {% if r.config.timeout is defined and r.config.timeout >= 900 %}
+  # WARNING: Timeout set to maximum ({{ r.config.timeout }}s) — errors may cause full-duration billing
+  {% endif %}
+
+  {% if r.config.reserved_concurrency is defined %}
+  reserved_concurrent_executions = {{ r.config.reserved_concurrency }}
+  {% endif %}
+
+  {% if r.config.direct_db_connection is defined and r.config.direct_db_connection %}
+  # NOTE: Direct DB connection without RDS Proxy — connection pooling risk
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [aws_security_group.{{ r.resource_name }}_sg.id]
+  }
+  {% endif %}
+
+  environment {
+    variables = {
+      ENVIRONMENT = "{{ r.config.environment | default('production') }}"
+    }
+  }
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_ecs_service(r) %}
+resource "aws_ecs_service" "{{ r.resource_name }}" {
+  name            = "{{ r.resource_name }}"
+  cluster         = aws_ecs_cluster.{{ r.config.cluster_name | default('main') }}.id
+  task_definition = aws_ecs_task_definition.{{ r.resource_name }}.arn
+  desired_count   = {{ r.config.desired_count | default(2) }}
+  launch_type     = "{{ r.config.launch_type | default('FARGATE') }}"
+
+  {% if r.config.launch_type | default('FARGATE') == 'FARGATE' %}
+  platform_version = "{{ r.config.platform_version | default('LATEST') }}"
+  {% endif %}
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [aws_security_group.{{ r.resource_name }}_sg.id]
+    assign_public_ip = false
+  }
+
+  {% if r.config.pricing is defined %}
+  # Pricing model: {{ r.config.pricing }}
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+
+resource "aws_ecs_task_definition" "{{ r.resource_name }}" {
+  family                   = "{{ r.resource_name }}"
+  requires_compatibilities = ["{{ r.config.launch_type | default('FARGATE') }}"]
+  network_mode             = "awsvpc"
+  cpu                      = "{{ r.config.cpu | default(256) }}"
+  memory                   = "{{ r.config.memory | default(512) }}"
+
+  {% if r.config.cpu is defined and r.config.cpu >= 4096 %}
+  # WARNING: Task configured with {{ r.config.cpu }} CPU units ({{ r.config.cpu / 1024 }} vCPU) — check utilization
+  {% endif %}
+
+  container_definitions = jsonencode([
+    {
+      name      = "{{ r.resource_name }}-container"
+      image     = "{{ r.config.image | default('nginx:latest') }}"
+      cpu       = {{ r.config.cpu | default(256) }}
+      memory    = {{ r.config.memory | default(512) }}
+      essential = true
+      portMappings = [
+        {
+          containerPort = {{ r.config.container_port | default(80) }}
+          protocol      = "tcp"
+        }
+      ]
+    }
+  ])
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_autoscaling_group(r) %}
+resource "aws_autoscaling_group" "{{ r.resource_name }}" {
+  name                = "{{ r.resource_name }}"
+  min_size            = {{ r.config.min_size | default(1) }}
+  max_size            = {{ r.config.max_size | default(4) }}
+  desired_capacity    = {{ r.config.desired_capacity | default(r.config.min_size | default(1)) }}
+  vpc_zone_identifier = var.private_subnet_ids
+
+  launch_template {
+    id      = aws_launch_template.{{ r.resource_name }}.id
+    version = "$Latest"
+  }
+
+  {% if r.config.default_instance_warmup is defined and r.config.default_instance_warmup %}
+  default_instance_warmup = {{ r.config.default_instance_warmup }}
+  {% elif r.config.default_instance_warmup is not defined or r.config.default_instance_warmup is none %}
+  # WARNING: default_instance_warmup is NOT set — may cause scaling flapping
+  {% endif %}
+
+  {% if r.config.scaling_policy is defined and r.config.scaling_policy == 'target_tracking' %}
+  # Target tracking scaling policy with target CPU {{ r.config.target_cpu | default(60) }}%
+  {% endif %}
+
+  tag {
+    key                 = "Name"
+    value               = "{{ r.resource_name }}"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_launch_template" "{{ r.resource_name }}" {
+  name_prefix   = "{{ r.resource_name }}-"
+  image_id      = "ami-0abcdef1234567890"
+  instance_type = "{{ r.config.instance_type | default('t3.medium') }}"
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "{{ r.resource_name }}"
+    }
+  }
+}
+
+{% if r.config.scaling_policy is defined and r.config.scaling_policy == 'target_tracking' %}
+resource "aws_autoscaling_policy" "{{ r.resource_name }}_target_tracking" {
+  name                   = "{{ r.resource_name }}-target-tracking"
+  autoscaling_group_name = aws_autoscaling_group.{{ r.resource_name }}.name
+  policy_type            = "TargetTrackingScaling"
+
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ASGAverageCPUUtilization"
+    }
+    target_value = {{ r.config.target_cpu | default(60) }}
+  }
+}
+{% endif %}
+{% endmacro %}
+
+
+{% macro aws_eks_cluster(r) %}
+resource "aws_eks_cluster" "{{ r.resource_name }}" {
+  name     = "{{ r.config.cluster_name | default(r.resource_name) }}"
+  role_arn = aws_iam_role.{{ r.resource_name }}_cluster_role.arn
+  version  = "{{ r.config.version | default('1.28') }}"
+
+  vpc_config {
+    subnet_ids = var.private_subnet_ids
+  }
+
+  {% if r.config.total_pods is defined %}
+  # Cluster pods: {{ r.config.total_pods }} total
+  # Pod CPU request: {{ r.config.pod_cpu_request_millicores | default('N/A') }}m
+  # Pod CPU actual:  {{ r.config.pod_cpu_actual_millicores | default('N/A') }}m
+  {% endif %}
+
+  {% if r.config.pod_cpu_request_millicores is defined and r.config.pod_cpu_actual_millicores is defined %}
+  {% if r.config.pod_cpu_request_millicores > r.config.pod_cpu_actual_millicores * 3 %}
+  # WARNING: CPU request ({{ r.config.pod_cpu_request_millicores }}m) is {{ (r.config.pod_cpu_request_millicores / r.config.pod_cpu_actual_millicores) | round(1) }}x actual usage ({{ r.config.pod_cpu_actual_millicores }}m)
+  # Consider deploying VPA (Vertical Pod Autoscaler) to right-size requests
+  {% endif %}
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}

@@ -1,0 +1,34 @@
+# 스터디 멤버 목록
+# GitHub username으로 등록
+members:
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+  - username: dev-jiseok
+    name: "이지석"
+    joined: "2026-03-17"
+    
+  # - username: alice
+  #   name: "Alice"
+  #   joined: "2026-03-17"
+  # - username: bob
+  #   name: "Bob"
+  #   joined: "2026-03-17"

@@ -1,0 +1,9 @@
+# FinOps 스터디 그룹 설정
+group:
+  name: "09th-ai-cloud-finops"
+  description: "Cloud Club 9기 AI Cloud FinOps 스터디"
+  repo: "cloud-club/09th-ai-cloud-finops"
+
+# 관리자 목록 (GitHub username)
+admins:
+  - dev-jiseok

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Materials - FinOps Study</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">F</div>
+        <span class="brand-text">FinOps Study</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Dashboard
+        </a>
+        <a href="problems.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Problems
+        </a>
+        <a href="submit.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Submit Answer
+        </a>
+        <a href="scores.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          Scores
+        </a>
+        <a href="profile.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </a>
+        <a href="materials.html" class="sidebar-link active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Materials
+        </a>
+        <div class="sidebar-section-label">Admin</div>
+        <a href="admin.html" class="sidebar-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Settings
+        </a>
+      </nav>
+      <div class="sidebar-footer" id="auth-area"></div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>Study Materials</h1>
+        </div>
+        <div class="topbar-right">
+          <button onclick="showUploadModal()" class="btn btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Upload Material
+          </button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div id="materials-loading" class="loading">
+          <div class="spinner"></div>
+          <p>Loading materials...</p>
+        </div>
+
+        <div id="materials-content" style="display:none;">
+          <!-- Week Filter Tabs -->
+          <div class="tabs" id="week-filter-tabs" style="margin-bottom:20px;">
+            <div class="tab active" data-week="all" onclick="filterWeek('all', this)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              All
+            </div>
+          </div>
+
+          <!-- Materials List -->
+          <div id="materials-list"></div>
+
+          <!-- Empty State -->
+          <div id="materials-empty" class="empty-state" style="display:none;">
+            <h3>No materials yet</h3>
+            <p>Upload study materials for your team.</p>
+            <button onclick="showUploadModal()" class="btn btn-primary" style="margin-top:16px;">Upload First Material</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="upload-modal">
+    <div class="modal" style="max-width:560px;">
+      <h2 style="margin-bottom:20px;">Upload Study Material</h2>
+
+      <div class="form-group">
+        <label for="mat-title">Title</label>
+        <input type="text" id="mat-title" placeholder="e.g. Week 3 FinOps 정리노트">
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="mat-week">Week</label>
+          <select id="mat-week">
+            <option value="general">General</option>
+            <option value="1">Week 1</option>
+            <option value="2">Week 2</option>
+            <option value="3">Week 3</option>
+            <option value="4">Week 4</option>
+            <option value="5">Week 5</option>
+            <option value="6">Week 6</option>
+            <option value="7">Week 7</option>
+            <option value="8">Week 8</option>
+            <option value="9">Week 9</option>
+            <option value="10">Week 10</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="mat-category">Category</label>
+          <select id="mat-category">
+            <option value="note">Study Note</option>
+            <option value="reference">Reference</option>
+            <option value="presentation">Presentation</option>
+            <option value="code">Code / Script</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="mat-description">Description (optional)</label>
+        <textarea id="mat-description" style="min-height:80px;" placeholder="What is this material about?"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Files</label>
+        <div id="upload-drop-zone" class="drop-zone" onclick="document.getElementById('mat-file-input').click();">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p style="margin-top:8px;font-weight:500;font-size:14px;">Click or drag files here</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">.md, .pdf, .py, .tf, .json, .yaml, .png, .jpg, .txt (max 10MB each)</p>
+        </div>
+        <input type="file" id="mat-file-input" multiple accept=".md,.pdf,.py,.tf,.json,.yaml,.yml,.png,.jpg,.jpeg,.txt,.csv,.hcl,.ipynb" style="display:none;" onchange="handleMaterialFiles(this)">
+        <div id="mat-file-list" style="margin-top:8px;"></div>
+      </div>
+
+      <p id="upload-error" style="color:var(--red);font-size:13px;margin-bottom:12px;"></p>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onclick="hideUploadModal()" class="btn">Cancel</button>
+        <button onclick="uploadMaterial()" class="btn btn-primary" id="upload-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Viewer Modal (for markdown / text preview) -->
+  <div class="modal-overlay" id="viewer-modal">
+    <div class="modal" style="max-width:800px;max-height:85vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 id="viewer-title" style="margin:0;"></h2>
+        <button onclick="hideViewerModal()" class="btn btn-ghost btn-sm" style="padding:4px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="viewer-content" style="overflow-y:auto;flex:1;line-height:1.8;"></div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/materials.js"></script>
+</body>
+</html>

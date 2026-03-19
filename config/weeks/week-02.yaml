@@ -1,0 +1,18 @@
+# Week 02 설정
+week: 2
+level: "L1"
+num_problems: 3
+category: null
+reveal_date: "2026-03-31"
+description: "FinOps 기초 - 스토리지 및 네트워크 낭비 식별"
+generators:
+  - tf
+  - metrics
+  - cost_report
+scoring_weights:
+  schema: 1.0
+  resource: 1.0
+  savings: 1.0
+  terraform: 1.0
+  economics: 0.0
+  alerts: 0.0

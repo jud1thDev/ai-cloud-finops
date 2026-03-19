@@ -1,0 +1,9 @@
+# Slack integration configuration
+# Set SLACK_WEBHOOK_URL environment variable or configure here.
+#
+# Usage: finops-study submit ./output/ --week 1 --scenario L1-001 --notify-slack
+#
+# webhook_url: "https://hooks.slack.com/services/T.../B.../xxx"  # Set via env var
+channel: "#finops-alerts"
+username: "FinOps AI Bot"
+icon_emoji: ":money_with_wings:"

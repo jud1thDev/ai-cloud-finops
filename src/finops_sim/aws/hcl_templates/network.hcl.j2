@@ -1,0 +1,304 @@
+{# ──────────────────────────────────────────────────────────────────────────
+   Network resource templates: aws_nat_gateway, aws_vpc_endpoint,
+   aws_ec2_transit_gateway, aws_lb, aws_eip, aws_vpn_connection,
+   aws_dx_connection, aws_cloudfront_distribution, aws_subnet
+   ────────────────────────────────────────────────────────────────────────── #}
+
+{% macro aws_nat_gateway(r) %}
+resource "aws_nat_gateway" "{{ r.resource_name }}" {
+  allocation_id = aws_eip.{{ r.resource_name }}_eip.id
+  subnet_id     = aws_subnet.{{ r.config.subnet_id | default('public') }}.id
+
+  {% if r.config.availability_zone is defined %}
+  # Deployed in: {{ r.config.availability_zone }}
+  {% endif %}
+
+  {% if r.config.monthly_data_gb is defined %}
+  # Estimated monthly data processed: {{ r.config.monthly_data_gb }} GB
+  # NAT Gateway processing cost: $0.045/GB
+  # Monthly processing charge: ~${{ (r.config.monthly_data_gb * 0.045) | round(0) | int }}
+  {% endif %}
+
+  {% if r.config.s3_traffic_ratio is defined and r.config.s3_traffic_ratio > 0 %}
+  # WARNING: {{ (r.config.s3_traffic_ratio * 100) | int }}% of traffic is to S3
+  # Consider S3 Gateway Endpoint to eliminate NAT processing costs for S3 traffic
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+
+resource "aws_eip" "{{ r.resource_name }}_eip" {
+  domain = "vpc"
+
+  tags = {
+    Name = "{{ r.resource_name }}-eip"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_vpc_endpoint(r) %}
+resource "aws_vpc_endpoint" "{{ r.resource_name }}" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "{{ r.config.service | default('com.amazonaws.ap-northeast-2.s3') }}"
+  vpc_endpoint_type = "{{ r.config.endpoint_type | default('Gateway') }}"
+
+  {% if r.config.endpoint_type | default('Gateway') == 'Interface' %}
+  # Interface Endpoint (PrivateLink) — incurs hourly + data processing charges
+  # $0.01/hr per AZ + $0.01/GB data processed
+  {% if r.config.availability_zones is defined %}
+  # Deployed across {{ r.config.availability_zones }} AZs
+  # Estimated hourly cost: {{ r.config.availability_zones }} AZs x $0.01/hr = ${{ (r.config.availability_zones * 0.01) | round(3) }}/hr
+  {% endif %}
+  {% if r.config.monthly_data_gb is defined %}
+  # Monthly data processed: {{ r.config.monthly_data_gb }} GB
+  {% endif %}
+
+  subnet_ids         = var.private_subnet_ids
+  security_group_ids = [aws_security_group.{{ r.resource_name }}_sg.id]
+
+  private_dns_enabled = {{ r.config.private_dns_enabled | default(true) | lower }}
+
+  {% elif r.config.endpoint_type | default('Gateway') == 'Gateway' %}
+  # Gateway Endpoint — FREE, no hourly or data processing charges
+  route_table_ids = var.private_route_table_ids
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_ec2_transit_gateway(r) %}
+resource "aws_ec2_transit_gateway" "{{ r.resource_name }}" {
+  description = "{{ r.config.description | default('Transit Gateway') }}"
+
+  default_route_table_association = "{{ r.config.default_route_table_association | default('enable') }}"
+  default_route_table_propagation = "{{ r.config.default_route_table_propagation | default('enable') }}"
+  dns_support                     = "{{ r.config.dns_support | default('enable') }}"
+
+  {% if r.config.attachments is defined %}
+  # VPC attachments: {{ r.config.attachments }}
+  {% if r.config.attachments <= 2 %}
+  # WARNING: Only {{ r.config.attachments }} VPC attachments — VPC Peering may be more cost-effective
+  # Transit Gateway data processing: $0.02/GB vs VPC Peering: free (same AZ) / $0.01/GB (cross AZ)
+  {% endif %}
+  {% endif %}
+
+  {% if r.config.monthly_data_processed_gb is defined %}
+  # Monthly data processed: {{ r.config.monthly_data_processed_gb }} GB
+  # Transit Gateway processing cost: ${{ (r.config.monthly_data_processed_gb * 0.02) | round(0) | int }}/month
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_lb(r) %}
+resource "aws_lb" "{{ r.resource_name }}" {
+  name               = "{{ r.resource_name }}"
+  internal           = {{ r.config.internal | default(false) | lower }}
+  load_balancer_type = "{{ r.config.load_balancer_type | default(r.config.type | default('application')) }}"
+  security_groups    = {% if r.config.load_balancer_type | default(r.config.type | default('application')) == 'application' %}[aws_security_group.{{ r.resource_name }}_sg.id]{% else %}[]{% endif %}
+
+  subnets = var.public_subnet_ids
+
+  {% if r.config.cross_zone_enabled is defined %}
+  enable_cross_zone_load_balancing = {{ r.config.cross_zone_enabled | lower }}
+  {% if r.config.cross_zone_enabled and r.config.load_balancer_type | default(r.config.type | default('application')) == 'network' %}
+  # WARNING: NLB cross-zone load balancing incurs $0.01/GB data transfer charge
+  # ALB cross-zone is free — consider ALB if Layer 4 is not strictly required
+  {% if r.config.monthly_data_gb is defined %}
+  # Estimated cross-zone cost: {{ r.config.monthly_data_gb }} GB x $0.01/GB = ${{ (r.config.monthly_data_gb * 0.01) | round(0) | int }}/month
+  {% endif %}
+  {% endif %}
+  {% endif %}
+
+  {% if r.config.idle_days is defined %}
+  # WARNING: Load balancer idle for {{ r.config.idle_days }} days
+  # Healthy targets: {{ r.config.healthy_targets | default(0) }}
+  # Fixed hourly cost continues regardless of traffic
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+    {% if r.config.tags is defined %}
+    {% for key, value in r.config.tags.items() %}
+    {{ key }} = "{{ value }}"
+    {% endfor %}
+    {% endif %}
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_eip(r) %}
+resource "aws_eip" "{{ r.resource_name }}" {
+  domain = "vpc"
+
+  {% if r.config.attached is defined and not r.config.attached %}
+  # WARNING: Elastic IP is NOT attached to any instance
+  # Unattached for {{ r.config.unattached_days | default(0) }} days
+  # AWS charges $0.005/hr for unattached EIPs = ~$3.65/month per EIP
+  {% endif %}
+
+  {% if r.config.attached is defined and r.config.attached %}
+  instance = aws_instance.{{ r.config.attached_to | default('target') }}.id
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_vpn_connection(r) %}
+resource "aws_vpn_connection" "{{ r.resource_name }}" {
+  customer_gateway_id = aws_customer_gateway.{{ r.resource_name }}_cgw.id
+  vpn_gateway_id      = aws_vpn_gateway.{{ r.resource_name }}_vgw.id
+  type                = "ipsec.1"
+  static_routes_only  = {{ r.config.static_routes_only | default(false) | lower }}
+
+  {% if r.config.tunnel_count is defined %}
+  # Tunnel count: {{ r.config.tunnel_count }}
+  {% endif %}
+
+  {% if r.config.monthly_data_in_gb is defined and r.config.monthly_data_in_gb == 0 %}
+  # WARNING: VPN connection has ZERO data transfer
+  # Data in:  {{ r.config.monthly_data_in_gb }} GB/month
+  # Data out: {{ r.config.monthly_data_out_gb | default(0) }} GB/month
+  # Connection-hour billing continues at $0.05/hr regardless of traffic
+  {% endif %}
+
+  tags = {
+    Name  = "{{ r.resource_name }}"
+    State = "{{ r.config.state | default('available') }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_dx_connection(r) %}
+resource "aws_dx_connection" "{{ r.resource_name }}" {
+  name      = "{{ r.resource_name }}"
+  bandwidth = "{{ r.config.bandwidth | default('1Gbps') }}"
+  location  = "{{ r.config.location | default('EqSE2') }}"
+
+  {% if r.config.monthly_data_out_gb is defined %}
+  # Monthly data out: {{ r.config.monthly_data_out_gb }} GB
+  # Direct Connect data transfer: $0.02/GB (lower than internet egress)
+  {% endif %}
+
+  tags = {
+    Name  = "{{ r.resource_name }}"
+    State = "{{ r.config.state | default('available') }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_cloudfront_distribution(r) %}
+resource "aws_cloudfront_distribution" "{{ r.resource_name }}" {
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "{{ r.config.comment | default('CloudFront distribution') }}"
+  price_class     = "{{ r.config.price_class | default('PriceClass_All') }}"
+
+  origin {
+    domain_name = "{{ r.config.origin | default('origin-bucket.s3.amazonaws.com') }}"
+    origin_id   = "{{ r.config.origin_id | default('S3Origin') }}"
+
+    {% if r.config.oai_enabled is defined and r.config.oai_enabled %}
+    s3_origin_config {
+      origin_access_identity = aws_cloudfront_origin_access_identity.{{ r.resource_name }}.cloudfront_access_identity_path
+    }
+    {% endif %}
+  }
+
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "{{ r.config.origin_id | default('S3Origin') }}"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    forwarded_values {
+      query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = {{ r.config.min_ttl | default(0) }}
+    default_ttl = {{ r.config.default_ttl | default(86400) }}
+    max_ttl     = {{ r.config.max_ttl | default(31536000) }}
+  }
+
+  {% if r.config.cache_hit_ratio is defined %}
+  # Cache hit ratio: {{ (r.config.cache_hit_ratio * 100) | round(0) | int }}%
+  {% endif %}
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_subnet(r) %}
+{% if r.config.availability_zones is defined %}
+{% for az in r.config.availability_zones %}
+resource "aws_subnet" "{{ r.resource_name }}_{{ loop.index }}" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.{{ loop.index0 * 16 }}.0/20"
+  availability_zone = "{{ az }}"
+
+  {% if r.config.subnet_type is defined and r.config.subnet_type == 'private' %}
+  map_public_ip_on_launch = false
+  {% else %}
+  map_public_ip_on_launch = true
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}-{{ az }}"
+    Type = "{{ r.config.subnet_type | default('private') }}"
+  }
+}
+{% endfor %}
+{% else %}
+resource "aws_subnet" "{{ r.resource_name }}" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.0.0/20"
+  availability_zone = "{{ r.config.availability_zone | default('ap-northeast-2a') }}"
+
+  {% if r.config.subnet_type is defined and r.config.subnet_type == 'private' %}
+  map_public_ip_on_launch = false
+  {% else %}
+  map_public_ip_on_launch = true
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+    Type = "{{ r.config.subnet_type | default('private') }}"
+  }
+}
+{% endif %}
+{% endmacro %}

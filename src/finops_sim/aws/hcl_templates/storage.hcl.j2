@@ -1,0 +1,241 @@
+{# ──────────────────────────────────────────────────────────────────────────
+   Storage resource templates: aws_ebs_volume, aws_ebs_snapshot,
+   aws_s3_bucket, aws_s3_bucket_replication_configuration, aws_ecr_repository
+   ────────────────────────────────────────────────────────────────────────── #}
+
+{% macro aws_ebs_volume(r) %}
+resource "aws_ebs_volume" "{{ r.resource_name }}" {
+  availability_zone = "{{ r.config.availability_zone | default('ap-northeast-2a') }}"
+  size              = {{ r.config.size_gb | default(100) }}
+  type              = "{{ r.config.volume_type | default('gp3') }}"
+
+  {% if r.config.volume_type is defined and r.config.volume_type == 'gp2' %}
+  # NOTE: gp2 volume — consider migrating to gp3 for ~20% cost savings
+  # gp3 provides baseline 3,000 IOPS / 125 MiB/s without size-based scaling
+  {% endif %}
+
+  {% if r.config.iops is defined %}
+  iops = {{ r.config.iops }}
+  {% endif %}
+
+  {% if r.config.throughput is defined %}
+  throughput = {{ r.config.throughput }}
+  {% endif %}
+
+  {% if r.config.attached_to is defined and r.config.attached_to == 'stopped_instance' %}
+  # WARNING: Volume attached to a STOPPED instance — I/O is zero
+  # Storage charges continue at ${{ '0.10' if r.config.volume_type | default('gp3') == 'gp2' else '0.08' }}/GB/month
+  {% endif %}
+
+  encrypted = {{ r.config.encrypted | default(true) | lower }}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+    {% if r.config.attached_to is defined %}
+    AttachedTo = "{{ r.config.attached_to }}"
+    {% endif %}
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_ebs_snapshot(r) %}
+resource "aws_ebs_snapshot" "{{ r.resource_name }}" {
+  volume_id   = "{{ r.config.volume_id | default('vol-placeholder') }}"
+  description = "Snapshot {{ r.resource_name }}"
+
+  {% if r.config.source_volume_deleted is defined and r.config.source_volume_deleted %}
+  # WARNING: Source volume has been DELETED — this snapshot is orphaned
+  # Snapshot age: {{ r.config.avg_age_days | default(r.config.age_days | default('unknown')) }} days
+  # Total size: {{ r.config.total_size_gb | default('unknown') }} GB
+  # Cost: $0.05/GB/month
+  {% endif %}
+
+  {% if r.config.associated_with_ami is defined and r.config.associated_with_ami %}
+  # Associated with AMI — deregister AMI first before deleting this snapshot
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+    {% if r.config.source_volume_deleted is defined and r.config.source_volume_deleted %}
+    SourceVolumeStatus = "deleted"
+    {% endif %}
+    {% if r.config.source_volume_exists is defined and r.config.source_volume_exists %}
+    SourceVolumeStatus = "exists"
+    {% endif %}
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_s3_bucket(r) %}
+resource "aws_s3_bucket" "{{ r.resource_name }}" {
+  bucket = "{{ r.config.bucket_name | default(r.resource_name) }}"
+
+  {% if r.config.versioning is defined and r.config.versioning %}
+  # Versioning enabled
+  {% if r.config.noncurrent_version_expiration_days is not defined or r.config.noncurrent_version_expiration_days is none %}
+  # WARNING: Versioning ON but NoncurrentVersionExpiration NOT configured
+  # Current size: {{ r.config.current_size_tb | default('unknown') }} TB
+  # Total with versions: {{ r.config.total_with_versions_tb | default('unknown') }} TB
+  {% endif %}
+  {% endif %}
+
+  {% if r.config.public_access is defined and r.config.public_access %}
+  # NOTE: Public access enabled — consider restricting via CloudFront OAI/OAC
+  {% endif %}
+
+  {% if r.config.website_hosting is defined and r.config.website_hosting %}
+  # Static website hosting enabled — monthly egress: {{ r.config.monthly_egress_tb | default('unknown') }} TB
+  {% endif %}
+
+  tags = {
+    Name        = "{{ r.config.bucket_name | default(r.resource_name) }}"
+    {% if r.config.purpose is defined %}
+    Purpose     = "{{ r.config.purpose }}"
+    {% endif %}
+    {% if r.config.tags is defined %}
+    {% for key, value in r.config.tags.items() %}
+    {{ key }} = "{{ value }}"
+    {% endfor %}
+    {% endif %}
+  }
+}
+
+{% if r.config.versioning is defined and r.config.versioning %}
+resource "aws_s3_bucket_versioning" "{{ r.resource_name }}" {
+  bucket = aws_s3_bucket.{{ r.resource_name }}.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+{% endif %}
+
+{% if r.config.lifecycle_policy is defined and r.config.lifecycle_policy %}
+resource "aws_s3_bucket_lifecycle_configuration" "{{ r.resource_name }}" {
+  bucket = aws_s3_bucket.{{ r.resource_name }}.id
+
+  rule {
+    id     = "transition-rule"
+    status = "Enabled"
+
+    {% if r.config.lifecycle_policy.transition_to is defined %}
+    transition {
+      days          = {{ r.config.lifecycle_policy.transition_days | default(90) }}
+      storage_class = "{{ r.config.lifecycle_policy.transition_to }}"
+    }
+    {% endif %}
+
+    {% if r.config.lifecycle_policy.expiration_days is defined %}
+    expiration {
+      days = {{ r.config.lifecycle_policy.expiration_days }}
+    }
+    {% endif %}
+  }
+
+  {% if r.config.noncurrent_version_expiration_days is defined and r.config.noncurrent_version_expiration_days %}
+  rule {
+    id     = "noncurrent-version-cleanup"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = {{ r.config.noncurrent_version_expiration_days }}
+    }
+  }
+  {% endif %}
+}
+{% elif r.config.lifecycle_policy is not defined or r.config.lifecycle_policy is none %}
+# WARNING: No lifecycle policy configured
+# Total bucket size: {{ r.config.total_size_tb | default(r.config.total_size_gb | default('unknown')) }}{{ ' TB' if r.config.total_size_tb is defined else ' GB' if r.config.total_size_gb is defined else '' }}
+# Storage class: {{ r.config.storage_class | default('STANDARD') }}
+{% endif %}
+
+{% if r.config.public_access is defined and not r.config.public_access %}
+resource "aws_s3_bucket_public_access_block" "{{ r.resource_name }}" {
+  bucket = aws_s3_bucket.{{ r.resource_name }}.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+{% endif %}
+{% endmacro %}
+
+
+{% macro aws_s3_bucket_replication_configuration(r) %}
+resource "aws_s3_bucket_replication_configuration" "{{ r.resource_name }}" {
+  bucket = aws_s3_bucket.{{ r.config.source_bucket | default('source') }}.id
+  role   = aws_iam_role.{{ r.resource_name }}_replication_role.arn
+
+  rule {
+    id     = "replication-rule"
+    status = "Enabled"
+
+    {% if r.config.filter is defined and r.config.filter %}
+    filter {
+      {% if r.config.filter.prefix is defined %}
+      prefix = "{{ r.config.filter.prefix }}"
+      {% endif %}
+    }
+    {% elif r.config.filter is not defined or r.config.filter is none %}
+    # WARNING: No filter — entire bucket ({{ r.config.total_size_tb | default('unknown') }} TB) is replicated
+    # Critical data ratio: {{ r.config.critical_data_ratio | default('unknown') }}
+    # Consider adding prefix or tag filter to replicate only essential data
+    filter {}
+    {% endif %}
+
+    destination {
+      bucket        = "arn:aws:s3:::{{ r.config.destination_bucket | default('destination') }}"
+      storage_class = "{{ r.config.destination_storage_class | default('STANDARD') }}"
+    }
+  }
+}
+{% endmacro %}
+
+
+{% macro aws_ecr_repository(r) %}
+resource "aws_ecr_repository" "{{ r.resource_name }}" {
+  name                 = "{{ r.resource_name }}"
+  image_tag_mutability = "{{ r.config.image_tag_mutability | default('MUTABLE') }}"
+
+  image_scanning_configuration {
+    scan_on_push = {{ r.config.scan_on_push | default(true) | lower }}
+  }
+
+  {% if r.config.lifecycle_policy is not defined or r.config.lifecycle_policy is none %}
+  # WARNING: No lifecycle policy — images accumulate indefinitely
+  # Current image count: {{ r.config.image_count | default('unknown') }}
+  # Repository size: {{ r.config.total_size_gb | default('unknown') }} GB
+  # ECR storage: $0.10/GB/month
+  {% endif %}
+
+  tags = {
+    Name = "{{ r.resource_name }}"
+  }
+}
+
+{% if r.config.lifecycle_policy is defined and r.config.lifecycle_policy %}
+resource "aws_ecr_lifecycle_policy" "{{ r.resource_name }}" {
+  repository = aws_ecr_repository.{{ r.resource_name }}.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last {{ r.config.lifecycle_policy_keep | default(10) }} images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = {{ r.config.lifecycle_policy_keep | default(10) }}
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+{% endif %}
+{% endmacro %}

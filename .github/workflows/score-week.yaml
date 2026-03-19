@@ -1,0 +1,55 @@
+name: Score Week
+
+on:
+  repository_dispatch:
+    types: [answers-revealed]
+  workflow_dispatch:
+    inputs:
+      week_number:
+        description: "Week number to score"
+        required: true
+        type: number
+
+permissions:
+  contents: write
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Determine weeks to score
+        id: weeks
+        run: |
+          if [ -n "${{ inputs.week_number }}" ]; then
+            echo "weeks=${{ inputs.week_number }}" >> $GITHUB_OUTPUT
+          else
+            # Score all weeks that have answers
+            weeks=$(ls -d answers/week-* 2>/dev/null | sed 's/.*week-0*//' | tr '\n' ' ')
+            echo "weeks=$weeks" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Score submissions
+        run: |
+          for week in ${{ steps.weeks.outputs.weeks }}; do
+            echo "Scoring week $week..."
+            python scripts/score_submissions.py --week "$week" || true
+          done
+
+      - name: Commit scores
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scores/
+          git diff --staged --quiet || {
+            git commit -m "Update scores"
+            git push
+          }

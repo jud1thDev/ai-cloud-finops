@@ -1,0 +1,208 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "finops-ai-output-v1",
+  "title": "FinOps AI Analysis Output",
+  "description": "학생 AI가 출력해야 하는 FinOps 분석 결과의 표준 스키마",
+  "type": "object",
+  "properties": {
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "problems_found": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource": {
+                "type": "string",
+                "description": "Terraform 리소스 이름 (e.g., instance-a1b2c3)"
+              },
+              "issue_type": {
+                "type": "string",
+                "enum": ["unused", "overprovisioned", "rate_unoptimized", "anomaly", "tagging", "network", "architecture", "data"]
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "evidence": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "분석 근거 목록"
+              },
+              "recommendation": {
+                "type": "string",
+                "description": "해당 리소스에 대한 개선 권고"
+              },
+              "estimated_savings": {
+                "type": "number",
+                "minimum": 0,
+                "description": "해당 리소스 월간 절감 예상액 (USD)"
+              }
+            },
+            "required": ["resource", "issue_type", "severity", "evidence", "recommendation", "estimated_savings"]
+          }
+        },
+        "unit_economics": {
+          "type": "object",
+          "description": "단위경제 분석 (L2+ 필수)",
+          "properties": {
+            "cost_per_1k_requests": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cost_per_order": {
+              "type": "number",
+              "minimum": 0
+            },
+            "trend": {
+              "type": "string",
+              "enum": ["improving", "stable", "degrading"]
+            },
+            "vs_previous_period": {
+              "type": "number",
+              "description": "전월 대비 변동률 (%, 양수=비용 증가)"
+            }
+          },
+          "required": ["cost_per_1k_requests", "cost_per_order", "trend", "vs_previous_period"]
+        },
+        "elasticity": {
+          "type": "object",
+          "description": "탄력성 진단 (L3 필수)",
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "탄력성 점수 (0-100)"
+            },
+            "detail": {
+              "type": "string",
+              "description": "탄력성 분석 상세"
+            }
+          },
+          "required": ["score", "detail"]
+        }
+      },
+      "required": ["problems_found"]
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "수행할 액션 (e.g., delete, resize, purchase_ri)"
+          },
+          "target": {
+            "type": "string",
+            "description": "대상 리소스 또는 서비스"
+          },
+          "detail": {
+            "type": "string",
+            "description": "상세 설명"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "estimated_savings": {
+            "type": "number",
+            "minimum": 0,
+            "description": "월간 절감 예상액 (USD)"
+          },
+          "risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "실행 위험도"
+          }
+        },
+        "required": ["action", "target", "detail", "priority", "estimated_savings", "risk"]
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "description": "알림 생성 (L3 필수)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": ["slack", "email", "pagerduty"]
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["info", "warning", "critical"]
+          },
+          "title": { "type": "string" },
+          "message": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          }
+        },
+        "required": ["channel", "urgency", "title", "message", "severity"]
+      }
+    },
+    "optimized_terraform": {
+      "type": "string",
+      "description": "최적화된 Terraform HCL 코드 (선택)"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_issues_found": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_monthly_savings_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "confidence_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "분석 신뢰도 (0-100)"
+        }
+      },
+      "required": ["total_issues_found", "total_monthly_savings_usd", "confidence_score"]
+    }
+  },
+  "allOf": [
+    {
+      "description": "L1: problems_found + recommendations + summary 필수",
+      "required": ["analysis", "recommendations", "summary"]
+    }
+  ],
+  "definitions": {
+    "L2_required": {
+      "description": "L2: L1 + unit_economics 필수",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "analysis": {
+              "required": ["problems_found", "unit_economics"]
+            }
+          }
+        }
+      ]
+    },
+    "L3_required": {
+      "description": "L3: L2 + elasticity + alerts 필수",
+      "allOf": [
+        { "$ref": "#/definitions/L2_required" },
+        {
+          "properties": {
+            "analysis": {
+              "required": ["problems_found", "unit_economics", "elasticity"]
+            }
+          },
+          "required": ["analysis", "recommendations", "alerts", "summary"]
+        }
+      ]
+    }
+  }
+}

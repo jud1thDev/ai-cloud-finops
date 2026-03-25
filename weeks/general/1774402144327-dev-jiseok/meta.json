@@ -1,0 +1,12 @@
+{
+  "id": "1774402144327-dev-jiseok",
+  "title": "Agent 로 최적화 하는 EKS 운영: AWS DevOps Agent + K8s Operator로 MTTR 줄이기",
+  "author": "dev-jiseok",
+  "date": "2026-03-25T01:29:04.327Z",
+  "week": "general",
+  "category": "note",
+  "description": "https://aws.amazon.com/ko/blogs/tech/aws-devops-agent-k8s-operator/",
+  "files": [
+    "content.md"
+  ]
+}
